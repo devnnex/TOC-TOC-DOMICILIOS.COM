@@ -33,13 +33,16 @@ export const money = (v) =>
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(Number(v) || 0);
-export const date = (v, options = {}) =>
-  new Intl.DateTimeFormat("es-CO", {
+export const date = (v, options = {}) => {
+  const at = new Date(v);
+  if (!Number.isFinite(at.getTime())) return "Sin fecha";
+  return new Intl.DateTimeFormat("es-CO", {
     timeZone: "America/Bogota",
     day: "2-digit",
     month: "short",
     ...options,
-  }).format(new Date(v));
+  }).format(at);
+};
 export const time = (v) =>
   date(v, {
     day: undefined,
@@ -106,7 +109,7 @@ export async function passwordKey(password, salt) {
 let demoModule;
 export async function api(action, data = {}, session = "") {
   if (demo) {
-    demoModule ||= import("./demo.js");
+    demoModule ||= import("./demo.js?v=1.2.0");
     return (await demoModule).request(action, data, session);
   }
   if (!config.apiUrl)

@@ -20,198 +20,400 @@ import {
   poll,
   inCity,
   time,
-} from "./core.js";
-import { autocomplete } from "./maps.js";
+  distance,
+} from "./core.js?v=1.2.0";
+import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.2.0";
 banner();
 wireDialogs();
-const savedKey = demo ? "toc-demo-tracking" : "toc-tracking";
-const draftKey = demo ? "toc-demo-draft" : "toc-draft";
+const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",
+  draftKey = demo ? "toc-demo-draft" : "toc-draft",
+  profileKey = demo ? "toc-demo-contact" : "toc-contact";
+const form = $("#request-form"),
+  requestDialog = $("#request-dialog"),
+  trackingDialog = $("#tracking-dialog");
 let active = storageGet(savedKey),
   draft = storageGet(draftKey, null, sessionStorage),
   point = null,
   watchId = null,
   watcher = null,
+  gpsGeneration = 0,
+  pointGeneration = 0,
+  lookupPending = null,
   lastLocationSent = 0,
-  lastPoint = null,
-  sendingLocation = false;
-const form = $("#request-form"),
-  dialog = $("#tracking-dialog");
-$("#privacy-button").addEventListener("click", () =>
-  $("#privacy-dialog").showModal(),
-);
-$("#minimize-tracking").addEventListener("click", () => {
-  dialog.close();
-  $("#tracking-dock").hidden = false;
-});
-dialog.addEventListener("cancel", () => ($("#tracking-dock").hidden = false));
-$("#tracking-dock").addEventListener("click", () => {
-  dialog.showModal();
-  $("#tracking-dock").hidden = true;
-});
-$("#tracking-sound").addEventListener("click", async () => {
-  if (await sound.enable()) {
-    sound.play("Las notificaciones de TOC TOC están activadas.");
-    $("#tracking-sound").textContent = "Sonido y voz activados";
-  } else
-    notify("El navegador no permite audio. Revisa los permisos de sonido.");
-});
-$("#address").addEventListener("input", () => {
-  point = null;
-  stopGps();
-  $("#tracking-permission").hidden = true;
-  $("#location-status").textContent =
-    "Usaremos la dirección que escribas. Añade una referencia para encontrarte mejor.";
-});
-$("#live-location").addEventListener("change", () => {
-  if (!$("#live-location").checked) stopGps();
-  else if (point?.locationMode === "gps") startGps();
-});
-$("#locate-button").addEventListener("click", () => {
-  if (!navigator.geolocation)
-    return notify(
-      "Tu navegador no ofrece GPS. Escribe la dirección manualmente.",
-    );
-  if (!window.isSecureContext)
-    return notify(
-      "El GPS requiere HTTPS o localhost. Puedes escribir la dirección.",
-    );
-  const button = $("#locate-button");
-  busy(button, true, "Encontrando tu ubicación…");
-  navigator.geolocation.getCurrentPosition(
-    (p) => {
-      busy(button, false);
-      if (!setPoint(p)) return;
-      $("#tracking-permission").hidden = false;
-      if (!$("#address").value.trim())
-        $("#address").value = `Ubicación GPS en ${config.city.name}`;
-      if ($("#live-location").checked) startGps();
-    },
-    (e) => {
-      busy(button, false);
-      $("#location-status").textContent =
-        {
-          1: "No se autorizó el GPS. Escribe tu dirección para continuar.",
-          2: "No pudimos encontrar tu ubicación. Escribe la dirección.",
-          3: "El GPS está tardando. Puedes reintentar o escribir la dirección.",
-        }[e.code] || "GPS no disponible. Escribe la dirección.";
-    },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 },
+  lastSentPoint = null,
+  sendingLocation = false,
+  lastMapKey = "",
+  lastTrackingMapKey = "",
+  trackedOrder = null;
+function launchState(state) {
+  $("#request-launch").dataset.state = state;
+  $("#launch-label").textContent = active
+    ? "Ver mi servicio"
+    : "Solicitar domicilio";
+}
+function locateBusy(state) {
+  const b = $("#locate-button");
+  b.disabled = state;
+  b.setAttribute("aria-busy", String(state));
+  $("span", b).textContent = state
+    ? "Afinando tu ubicación…"
+    : "Mejorar mi GPS";
+}
+function readyToSend() {
+  $("#submit-request").disabled =
+    !$("#address").value.trim() || !!$("#submit-request").dataset.sending;
+}
+function mapPlaceholder(manual = false) {
+  const box = el("div", manual ? "map-placeholder-manual" : "map-loading");
+  const target = el("span", manual ? "manual-target" : "scan-target");
+  target.append(icon(manual ? "pin" : "target"));
+  box.append(
+    target,
+    el("strong", "", manual ? "Ubica tu dirección" : "Encontrando tu punto…"),
+    el(
+      "span",
+      "",
+      manual
+        ? "Escribe calle, número y barrio. Pulsa Ubicar para ver el lugar aquí."
+        : "Autoriza la ubicación en tu navegador.",
+    ),
   );
-});
-function setPoint(p) {
+  $("#client-map").replaceChildren(box);
+  lastMapKey = "";
+}
+function mountMap(value) {
+  const key =
+    value.lat != null && value.lat !== ""
+      ? `${value.lat}:${value.lng}`
+      : `address:${value.address || ""}`;
+  if (!requestDialog.open || key === lastMapKey) return;
+  lastMapKey = key;
+  $("#client-map").replaceChildren(
+    mapPreview(value, config.city, { eager: true }),
+  );
+}
+function gpsText(p) {
+  return `GPS ±${p.accuracy} m. ${p.accuracy > 50 ? "La posición puede abarcar varias casas. Mejora el GPS o añade una referencia." : "Confirma que el lugar del mapa corresponda a tu recogida."}`;
+}
+function showPoint(p) {
+  $("#detected-address").textContent = p.address;
+  $("#address").value = p.address;
+  $("#location-chip").textContent =
+    p.locationMode === "gps" ? "GPS COMPARTIDO" : "PUNTO CONFIRMADO";
+  $("#address-source").textContent =
+    p.locationMode === "gps"
+      ? "DIRECCIÓN DE TU UBICACIÓN"
+      : "DIRECCIÓN ELEGIDA";
+  $("#location-status").textContent =
+    p.locationMode === "gps"
+      ? gpsText(p)
+      : "El equipo recibirá este mismo punto y esta dirección.";
+  $("#tracking-permission").hidden = p.locationMode !== "gps";
+  mountMap(p);
+  readyToSend();
+}
+function stopGps() {
+  gpsGeneration++;
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  locateBusy(false);
+}
+async function acceptGps(position, generation) {
+  if (generation !== gpsGeneration) return;
   const next = {
-    lat: p.coords.latitude,
-    lng: p.coords.longitude,
-    accuracy: Math.round(p.coords.accuracy),
-    locationAt: new Date(p.timestamp).toISOString(),
+    lat: position.coords.latitude,
+    lng: position.coords.longitude,
+    accuracy: Math.round(position.coords.accuracy),
+    locationAt: new Date(position.timestamp).toISOString(),
     locationMode: "gps",
   };
   if (!inCity(next)) {
     stopGps();
     point = null;
+    $("#location-chip").textContent = "FUERA DE LA ZONA";
     $("#location-status").textContent =
-      `Esta ubicación está fuera de la zona configurada de ${config.city.name}. No podemos solicitar un servicio desde allí.`;
-    return false;
+      `Este GPS está fuera de la zona configurada de ${config.city.name}. Confirma una dirección de recogida dentro de la zona.`;
+    showManual();
+    return;
   }
+  if (
+    point?.locationMode === "gps" &&
+    distance(point, next) < 0.02 &&
+    next.accuracy >= point.accuracy
+  ) {
+    locateBusy(false);
+    if (requestDialog.open) showPoint(point);
+    return;
+  }
+  const epoch = ++pointGeneration;
+  next.address = `Punto GPS · ${next.lat.toFixed(6)}, ${next.lng.toFixed(6)}`;
   point = next;
+  showPoint(next);
+  locateBusy(false);
+  launchState("ready");
   $("#location-status").textContent =
-    `Ubicación encontrada · precisión aproximada de ${next.accuracy} m. ${next.accuracy > 150 ? "La precisión es baja; confirma la dirección y añade una referencia." : "Confirma la dirección o añade una referencia."}`;
-  return true;
+    `${gpsText(next)} Buscando el nombre de la calle…`;
+  const lookup = (async () => {
+    try {
+      const found = await reverseAddress(next, config.city);
+      if (epoch !== pointGeneration || point?.locationMode !== "gps") return;
+      point = { ...next, address: found.address };
+      showPoint(point);
+    } catch {
+      if (epoch === pointGeneration)
+        $("#location-status").textContent =
+          `${gpsText(next)} La calle no pudo identificarse ahora. Tu punto GPS se conserva; puedes escribir la dirección o añadir una referencia.`;
+    } finally {
+      if (epoch === pointGeneration && active && $("#live-location").checked)
+        sendLocation();
+    }
+  })();
+  lookupPending = lookup;
+  lookup.finally(() => {
+    if (lookupPending === lookup) lookupPending = null;
+  });
 }
-function startGps() {
-  if (watchId !== null || !navigator.geolocation) return;
-  watchId = navigator.geolocation.watchPosition(
+function gpsError(error, generation) {
+  if (generation !== gpsGeneration) return;
+  locateBusy(false);
+  launchState("ready");
+  if (point) {
+    $("#location-status").textContent =
+      `${gpsText(point)} Conservamos el último punto recibido. Puedes volver a mejorar el GPS.`;
+    return;
+  }
+  $("#location-chip").textContent = "CONFIRMA TU DIRECCIÓN";
+  $("#location-status").textContent =
+    {
+      1: "No se autorizó la ubicación. Puedes escribir tu dirección aquí mismo.",
+      2: "No pudimos obtener el GPS. Escribe tu dirección para continuar.",
+      3: "El GPS está tardando. Reintenta o escribe tu dirección.",
+    }[error.code] || "Escribe tu dirección para continuar.";
+  if (!point) {
+    mapPlaceholder(true);
+    showManual();
+  }
+}
+function requestGps() {
+  if (!navigator.geolocation || !window.isSecureContext) {
+    $("#location-status").textContent =
+      "El GPS requiere un navegador con ubicación y una conexión segura. Puedes escribir tu dirección.";
+    showManual();
+    return;
+  }
+  stopGps();
+  const generation = gpsGeneration;
+  locateBusy(true);
+  launchState("locating");
+  navigator.geolocation.getCurrentPosition(
     (p) => {
-      if (setPoint(p) && active && $("#live-location").checked) sendLocation();
+      if (generation !== gpsGeneration) return;
+      acceptGps(p, generation);
+      if ($("#live-location").checked)
+        watchId = navigator.geolocation.watchPosition(
+          (next) => acceptGps(next, generation),
+          (e) => gpsError(e, generation),
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+        );
     },
-    () => {
-      $("#location-status").textContent =
-        "El GPS dejó de actualizarse. Conservamos la última ubicación recibida.";
-    },
-    { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 },
+    (e) => gpsError(e, generation),
+    { enableHighAccuracy: true, timeout: 14000, maximumAge: 5000 },
   );
 }
-function stopGps() {
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-  watchId = null;
+function showManual() {
+  $("#manual-address").hidden = false;
+  readyToSend();
 }
+function beginRequest() {
+  sound.enable();
+  if (active) {
+    trackingDialog.showModal();
+    return;
+  }
+  requestDialog.showModal();
+  lastMapKey = "";
+  $("#form-error").hidden = true;
+  const saved = storageGet(profileKey);
+  if (saved) {
+    form.elements.name.value = saved.name || "";
+    form.elements.phone.value = saved.phone || "";
+    $("#remember-contact").checked = true;
+  }
+  readyToSend();
+  if (point) {
+    showPoint(point);
+    if (point.locationMode === "gps") requestGps();
+  } else {
+    $("#detected-address").textContent = "Esperando tu ubicación";
+    $("#location-chip").textContent = "ACTIVANDO GPS";
+    mapPlaceholder();
+    requestGps();
+  }
+}
+$("#request-launch").addEventListener("click", beginRequest);
+$("#close-request").addEventListener("click", () => requestDialog.close());
+requestDialog.addEventListener("close", () => {
+  if (requestDialog.open) return;
+  if (!active) stopGps();
+  launchState(active ? active.lastStatus : "idle");
+});
+$("#locate-button").addEventListener("click", requestGps);
+$("#manual-address-button").addEventListener("click", () => {
+  showManual();
+  $("#address").focus();
+});
+$("#address").addEventListener("input", () => {
+  stopGps();
+  pointGeneration++;
+  point = null;
+  if (lastMapKey !== "manual") {
+    mapPlaceholder(true);
+    lastMapKey = "manual";
+  }
+  $("#tracking-permission").hidden = true;
+  $("#location-chip").textContent = "DIRECCIÓN MANUAL";
+  $("#address-source").textContent = "DIRECCIÓN DE RECOGIDA";
+  $("#detected-address").textContent =
+    $("#address").value || "Escribe tu dirección";
+  $("#location-status").textContent =
+    `La consulta se realiza dentro de ${config.city.name}. Pulsa Ubicar para confirmar su punto.`;
+  $("#places-client").replaceChildren();
+  readyToSend();
+});
+$("#search-address").addEventListener("click", async () => {
+  const b = $("#search-address");
+  busy(b, true, "Buscando…");
+  const input = $("#address").value.trim();
+  try {
+    const results = await searchAddresses(input, config.city);
+    const choose = (p) => {
+      if (!inCity(p))
+        return notify("Elige una dirección dentro de la zona del servicio.");
+      stopGps();
+      pointGeneration++;
+      point = {
+        ...p,
+        accuracy: "",
+        locationAt: new Date().toISOString(),
+        locationMode: "manual_place",
+      };
+      showPoint(point);
+      $("#places-client").replaceChildren();
+    };
+    if (results.length === 1) choose(results[0]);
+    else {
+      $("#places-client").replaceChildren(
+        el("p", "field-help", "Selecciona la dirección correcta."),
+        ...results.map((p) => {
+          const b = el("button", "address-result", p.address);
+          b.type = "button";
+          b.addEventListener("click", () => choose(p));
+          return b;
+        }),
+      );
+    }
+  } catch (e) {
+    $("#location-status").textContent = e.message;
+  } finally {
+    busy(b, false);
+  }
+});
+$("#live-location").addEventListener("change", () => {
+  if (active) {
+    active.sharingLocation = $("#live-location").checked;
+    storageSet(savedKey, active);
+  }
+  if (!$("#live-location").checked) stopGps();
+  else requestGps();
+});
+$("#privacy-button").addEventListener("click", () =>
+  $("#privacy-dialog").showModal(),
+);
+$("#minimize-tracking").addEventListener("click", () => {
+  trackingDialog.close();
+  $("#request-launch").focus();
+});
+$("#tracking-sound").addEventListener("click", async () => {
+  if (await sound.enable()) {
+    sound.play("Las notificaciones de TOC TOC están activadas.");
+    $("#tracking-sound").textContent = "Sonido y voz activados";
+  } else notify("Revisa los permisos de sonido de tu navegador.");
+});
+
 async function sendLocation() {
   if (
     !active ||
-    !point ||
+    point?.locationMode !== "gps" ||
     sendingLocation ||
-    Date.now() - lastLocationSent < 20000
+    Date.now() - lastLocationSent < 20000 ||
+    !$("#live-location").checked
   )
     return;
-  if (
-    lastPoint &&
-    Math.abs(lastPoint.lat - point.lat) + Math.abs(lastPoint.lng - point.lng) <
-      0.00015
-  )
-    return;
+  if (lastSentPoint && distance(lastSentPoint, point) < 0.02) return;
+  const snapshot = { ...point };
   sendingLocation = true;
   try {
-    await api("updateLocation", {
+    const result = await api("updateLocation", {
       id: active.id,
       trackingToken: active.trackingToken,
-      ...point,
+      ...snapshot,
     });
-    lastLocationSent = Date.now();
-    lastPoint = { ...point };
+    if (result.updated) {
+      lastLocationSent = Date.now();
+      lastSentPoint = snapshot;
+      active.pickup = snapshot;
+      storageSet(savedKey, active);
+    }
   } catch {
-    /* Se reintentará con la siguiente actualización, sin bloquear al cliente. */
+    /* La siguiente posición vuelve a intentarlo. */
   } finally {
     sendingLocation = false;
   }
 }
-autocomplete($("#places-client"), config.city, (p) => {
-  if (!inCity(p))
-    return notify("Selecciona una dirección dentro de la zona del servicio.");
-  stopGps();
-  point = {
-    ...p,
-    accuracy: "",
-    locationAt: new Date().toISOString(),
-    locationMode: "manual_place",
-  };
-  $("#address").value = p.address;
-  $("#tracking-permission").hidden = true;
-  $("#location-status").textContent =
-    "Dirección elegida en Google Maps. Confirma el número y añade una referencia.";
-});
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  $("#form-error").hidden = true;
   if (active) {
-    dialog.showModal();
+    requestDialog.close();
+    trackingDialog.showModal();
     return;
   }
-  const button = $("#submit-request");
-  busy(button, true, "Conectando con tu equipo…");
+  $("#form-error").hidden = true;
+  const b = $("#submit-request");
+  b.dataset.sending = "1";
+  busy(b, true, "Activando tu servicio…");
   sound.enable();
-  $("#tracking-pill").textContent = "CONECTANDO CON TU EQUIPO";
-  $("#tracking-title").textContent = "Dándole salida a tu solicitud.";
-  $("#tracking-description").textContent =
-    "Estamos enviando tu servicio. Confirmaremos aquí cuando quede registrado.";
-  $("#journey-animation").className = "journey-animation state-pending";
-  $("#tracking-details").replaceChildren();
-  $("#tracking-connection").textContent = "";
-  $("#keep-open").hidden = false;
-  $("#cancel-request").hidden = true;
-  $("#new-request").hidden = true;
-  dialog.showModal();
-  const fields = Object.fromEntries(new FormData(form));
-  // Conserva el mismo identificador incluso tras un timeout: el servidor deduplica.
-  if (!draft) {
-    draft = { id: crypto.randomUUID(), trackingToken: token() };
-    storageSet(draftKey, draft, sessionStorage);
-  }
+  launchState("sending");
   try {
+    if (lookupPending) await lookupPending;
+    const fields = Object.fromEntries(new FormData(form));
+    if (!fields.address.trim())
+      throw new Error(
+        "Confirma tu dirección o autoriza el GPS para continuar.",
+      );
+    if (!draft) {
+      draft = { id: crypto.randomUUID(), trackingToken: token() };
+      storageSet(draftKey, draft, sessionStorage);
+    }
+    const pickup = { address: fields.address, ...(point || {}) };
+    requestDialog.close();
+    $("#tracking-pill").textContent = "ACTIVANDO TU SERVICIO";
+    $("#tracking-title").textContent =
+      "Tu punto. Nuestro siguiente movimiento.";
+    $("#tracking-description").textContent =
+      "Estamos registrando la solicitud con el equipo.";
+    $("#journey-animation").className = "journey-animation state-pending";
+    $("#tracking-details").replaceChildren();
+    $("#keep-open").hidden = false;
+    $("#cancel-request").hidden = true;
+    $("#new-request").hidden = true;
+    $("#tracking-location").hidden = true;
+    trackingDialog.showModal();
     const result = await api("createRequest", {
       ...fields,
       ...draft,
+      ...pickup,
       cityId: config.city.id,
-      ...(point || {}),
+      consent: true,
       website: "",
     });
     active = {
@@ -221,20 +423,30 @@ form.addEventListener("submit", async (event) => {
       notifiedStatus: "",
       sharingLocation:
         point?.locationMode === "gps" && $("#live-location").checked,
+      pickup,
     };
     storageSet(savedKey, active);
+    storageSet(
+      profileKey,
+      $("#remember-contact").checked
+        ? { name: fields.name, phone: fields.phone }
+        : null,
+    );
     draft = null;
     storageSet(draftKey, null, sessionStorage);
     renderTracking(result);
-    dialog.showModal();
     beginTracking();
+    if (active.sharingLocation) requestGps();
   } catch (e) {
-    dialog.close();
-    $("#tracking-dock").hidden = true;
+    trackingDialog.close();
+    requestDialog.showModal();
     $("#form-error").textContent = e.message;
     $("#form-error").hidden = false;
+    launchState("ready");
   } finally {
-    busy(button, false);
+    delete b.dataset.sending;
+    busy(b, false);
+    readyToSend();
   }
 });
 function beginTracking() {
@@ -242,17 +454,17 @@ function beginTracking() {
   watcher = poll(async () => {
     if (!active) return;
     try {
-      const order = await api("trackRequest", {
+      const o = await api("trackRequest", {
         id: active.id,
         trackingToken: active.trackingToken,
       });
-      renderTracking(order);
+      renderTracking(o);
       $("#tracking-connection").textContent =
         `Última comprobación: ${time(Date.now())}. Actualización automática.`;
     } catch (e) {
       $("#tracking-connection").textContent =
         e.code === "NOT_FOUND"
-          ? "Este seguimiento ya no está disponible. Puedes iniciar una nueva solicitud."
+          ? "Este seguimiento ya no está disponible. Puedes iniciar otra solicitud."
           : `${e.message} Reintentando automáticamente.`;
       if (e.code === "NOT_FOUND") {
         watcher?.stop();
@@ -264,28 +476,35 @@ function beginTracking() {
     }
   }, config.pollMs);
 }
+function updateTrackingMap() {
+  if (!trackedOrder || !$("#tracking-location").open) return;
+  const key = `${trackedOrder.lat ?? ""}:${trackedOrder.lng ?? ""}:${trackedOrder.address}`;
+  if (key === lastTrackingMapKey) return;
+  lastTrackingMapKey = key;
+  $("#tracking-map").replaceChildren(mapPreview(trackedOrder, config.city));
+}
+$("#tracking-location").addEventListener("toggle", updateTrackingMap);
 function renderTracking(o) {
   if (!active) return;
-  const terminal = ["completed", "cancelled"].includes(o.status);
-  const text = {
-    pending: [
-      "Tu solicitud ya está en la ruta.",
-      "El equipo está revisando tu servicio. Mantén esta página abierta para recibir la confirmación.",
-    ],
-    accepted: [
-      "¡Tu domiciliario está en camino!",
-      "El equipo aceptó tu servicio y asignó un domiciliario. Aquí tienes sus datos para coordinar la recogida.",
-    ],
-    completed: [
-      "Un pendiente menos. Listo.",
-      "Tu servicio fue marcado como completado. Gracias por moverte con TOC TOC.",
-    ],
-    cancelled: [
-      "Solicitud cancelada",
-      o.cancelReason ||
-        "Este servicio fue cancelado. Si lo necesitas, puedes solicitar otro.",
-    ],
-  }[o.status];
+  const terminal = ["completed", "cancelled"].includes(o.status),
+    text = {
+      pending: [
+        "Tu solicitud ya está en la ruta.",
+        "El equipo está revisando tu servicio. Mantén esta página abierta para recibir la confirmación.",
+      ],
+      accepted: [
+        "¡Tu domiciliario está en camino!",
+        "El equipo aceptó tu servicio. Aquí tienes sus datos para coordinar la recogida.",
+      ],
+      completed: [
+        "Un pendiente menos. Listo.",
+        "Tu servicio fue marcado como completado. Gracias por moverte con TOC TOC.",
+      ],
+      cancelled: [
+        "Solicitud cancelada",
+        o.cancelReason || "Puedes solicitar otro servicio cuando lo necesites.",
+      ],
+    }[o.status];
   if (!text) return;
   $("#tracking-title").textContent = text[0];
   $("#tracking-description").textContent = text[1];
@@ -300,15 +519,18 @@ function renderTracking(o) {
   $("#keep-open").hidden = terminal;
   $("#cancel-request").hidden = o.status !== "pending";
   $("#new-request").hidden = !terminal;
+  trackedOrder = { ...(active.pickup || {}), ...o };
+  $("#tracking-location").hidden = false;
+  updateTrackingMap();
   const details = $("#tracking-details");
   details.replaceChildren();
-  const add = (label, val) => {
-    if (val === "" || val == null) return;
-    const r = el("div", "detail-row");
-    r.append(el("span", "", label), el("strong", "", val));
-    details.append(r);
+  const add = (label, value) => {
+    if (value === "" || value == null) return;
+    const row = el("div", "detail-row");
+    row.append(el("span", "", label), el("strong", "", value));
+    details.append(row);
   };
-  add("Solicitud", `#${o.id.slice(0, 8).toUpperCase()}`);
+  add("Solicitud", `#${String(o.id).slice(0, 8).toUpperCase()}`);
   add("Servicio", serviceLabels[o.service]);
   add("Recogida", o.address);
   add("Tu domiciliario", o.courier);
@@ -319,7 +541,9 @@ function renderTracking(o) {
       "button button-secondary",
       `Llamar a ${o.courier || "tu domiciliario"}`,
     );
-    a.href = `tel:${o.courierPhone.replace(/[^+\d]/g, "")}`;
+    a.href = `tel:+57${String(o.courierPhone)
+      .replace(/[^\d]/g, "")
+      .replace(/^57(?=3\d{9}$)/, "")}`;
     details.append(a);
   }
   if (o.status === "accepted" && active.notifiedStatus !== "accepted") {
@@ -327,31 +551,34 @@ function renderTracking(o) {
       "TOC TOC. Tu domiciliario está en camino. Tu servicio fue aceptado.",
     );
     if (sound.enabled) active.notifiedStatus = "accepted";
-    notify("¡Tu servicio fue aceptado! Tu domiciliario está en camino.");
+    notify("¡Tu domiciliario está en camino!");
   }
   if (o.status === "completed" && active.lastStatus !== "completed")
     sound.play(
       "Tu servicio de TOC TOC fue completado. Gracias por confiar en nosotros.",
     );
   active.lastStatus = o.status;
-  storageSet(savedKey, active);
+  launchState(o.status);
   if (terminal) {
+    active.sharingLocation = false;
     stopGps();
     watcher?.stop();
   }
+  storageSet(savedKey, active);
 }
 $("#cancel-request").addEventListener("click", async () => {
   if (!active || !confirm("¿Quieres cancelar esta solicitud?")) return;
   const b = $("#cancel-request");
   busy(b, true, "Cancelando…");
   try {
-    const o = await api("cancelRequest", {
-      id: active.id,
-      trackingToken: active.trackingToken,
-    });
-    renderTracking(o);
+    renderTracking(
+      await api("cancelRequest", {
+        id: active.id,
+        trackingToken: active.trackingToken,
+      }),
+    );
   } catch (e) {
-    notify(e.message);
+    $("#tracking-connection").textContent = e.message;
     watcher?.refresh();
   } finally {
     busy(b, false);
@@ -362,23 +589,28 @@ $("#new-request").addEventListener("click", () => {
   stopGps();
   active = null;
   storageSet(savedKey, null);
-  dialog.close();
-  $("#tracking-dock").hidden = true;
+  trackingDialog.close();
   form.reset();
   point = null;
+  pointGeneration++;
+  lastMapKey = "";
+  lastTrackingMapKey = "";
+  $("#address").value = "";
+  $("#manual-address").hidden = true;
   $("#tracking-permission").hidden = true;
-  $("#location-status").textContent = "También puedes escribir tu dirección.";
-  $("#solicitar").scrollIntoView({ behavior: "smooth" });
+  launchState("idle");
+  beginRequest();
 });
 window.addEventListener("pagehide", stopGps);
 if (active) {
-  dialog.showModal();
+  launchState(active.lastStatus);
+  trackingDialog.showModal();
   beginTracking();
   if (active.sharingLocation && navigator.permissions)
     navigator.permissions
       .query({ name: "geolocation" })
       .then((p) => {
-        if (p.state === "granted") startGps();
+        if (p.state === "granted") requestGps();
       })
       .catch(() => {});
-}
+} else launchState("idle");

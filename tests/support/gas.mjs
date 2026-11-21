@@ -8,6 +8,34 @@ function environment({ createOwner = true } = {}) {
     tables = new Map(),
     triggers = [];
   let locked = false;
+  const geocoding = {
+    reverseCalls: 0,
+    searchCalls: 0,
+    lastSearch: "",
+    fail: false,
+    outside: false,
+  };
+  const mapReply = (lat = 7.0653, lng = -73.8547) => ({
+    status: "OK",
+    results: [
+      {
+        formatted_address:
+          "Calle 49 # 8-25, Barrancabermeja, Santander, Colombia",
+        address_components: [
+          {
+            long_name: geocoding.outside ? "Bogotá" : "Barrancabermeja",
+            types: ["locality"],
+          },
+        ],
+        geometry: {
+          location: {
+            lat: geocoding.outside ? 4.7 : lat + 0.000001,
+            lng: geocoding.outside ? -74.1 : lng,
+          },
+        },
+      },
+    ],
+  });
   class Sheet {
     constructor(name) {
       this.name = name;
@@ -71,6 +99,30 @@ function environment({ createOwner = true } = {}) {
   }
   const context = vm.createContext({
     console: { log() {}, error() {} },
+    Maps: {
+      newGeocoder: () => ({
+        setLanguage() {
+          return this;
+        },
+        setRegion() {
+          return this;
+        },
+        setBounds() {
+          return this;
+        },
+        reverseGeocode(lat, lng) {
+          geocoding.reverseCalls++;
+          if (geocoding.fail) throw new Error("Cuota de prueba");
+          return mapReply(lat, lng);
+        },
+        geocode(address) {
+          geocoding.searchCalls++;
+          geocoding.lastSearch = address;
+          if (geocoding.fail) throw new Error("Cuota de prueba");
+          return mapReply();
+        },
+      }),
+    },
     SpreadsheetApp: {
       flush() {},
       openById: () => ({
@@ -188,6 +240,7 @@ function environment({ createOwner = true } = {}) {
     triggers,
     owner: boot?.data.token || "",
     ownerKey,
+    geocoding,
   };
 }
 

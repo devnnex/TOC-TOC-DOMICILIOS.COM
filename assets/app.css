@@ -1656,12 +1656,17 @@ dialog::backdrop {
   flex-direction: column;
   gap: 14px;
 }
+.request-fallback {
+  padding: 24px;
+}
+.request-fallback > * + * {
+  margin-top: 12px;
+}
 .request-item {
   border: 1px solid var(--line);
   border-radius: 15px;
   background: white;
   overflow: hidden;
-  animation: card-arrive 0.25s ease-out;
 }
 .request-item.status-pending {
   border-left: 3px solid var(--orange);
@@ -1851,6 +1856,70 @@ summary::-webkit-details-marker {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+.map-mode {
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 7px;
+  padding: 8px 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  min-height: 36px;
+}
+.map-mode[aria-pressed="true"] {
+  background: var(--orange-soft);
+  color: var(--orange-dark);
+  border-color: #ffd3bd;
+}
+.map-provider {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+.map-caption {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+  padding: 8px 2px;
+}
+.embedded-search {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-top: 8px;
+}
+.embedded-search input {
+  min-width: 0;
+  font-size: 14px;
+}
+.embedded-search .button {
+  padding: 10px 12px;
+  min-height: 44px;
+  font-size: 14px;
+}
+.address-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  text-align: left;
+  line-height: 1.6;
+  margin-top: 7px;
+}
+.address-result:hover {
+  background: var(--orange-soft);
+}
+.address-result .icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  color: var(--orange);
 }
 .map-toolbar > .icon {
   width: 14px;
@@ -2268,16 +2337,6 @@ tbody tr:hover {
   to {
     transform: scale(1);
     opacity: 1;
-  }
-}
-@keyframes card-arrive {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 @keyframes shimmer {

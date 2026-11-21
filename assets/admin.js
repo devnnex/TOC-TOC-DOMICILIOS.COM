@@ -21,8 +21,9 @@ import {
   sound,
   poll,
   inCity,
-} from "./core.js";
-import { mapPreview, autocomplete } from "./maps.js";
+} from "./core.js?v=1.2.0";
+import { mapPreview, autocomplete } from "./maps.js?v=1.2.0";
+import { normalizeOrder } from "./orders.js?v=1.2.0";
 banner();
 wireDialogs();
 const sessionKey = demo ? "toc-demo-session" : "toc-session";
@@ -226,10 +227,7 @@ async function enter() {
         `Cada ${config.adminPollMs / 1000} segundos, más el tiempo de respuesta de Google`,
       ],
       ["Sesión válida hasta", time(session.expiresAt)],
-      [
-        "Google Maps",
-        config.mapsApiKey ? "Clave configurada" : "Pendiente de configurar",
-      ],
+      ["Google Maps", "Mapa y búsqueda integrados · sin clave de navegador"],
     ].map(([k, v]) => {
       const n = el("div", "detail-row");
       n.append(el("span", "", k), el("strong", "", v));
@@ -288,10 +286,14 @@ async function sync() {
     $("#connection-state").textContent = "Panel conectado";
     $("#connection-state").classList.add("connected");
     $("#last-sync").textContent = `Actualizado ${time(Date.now())}`;
-    $("#admin-error").hidden = true;
-    if (result.unchanged) return;
+    if (result.unchanged) {
+      if (orders.length && !$("#requests-list").children.length) renderInbox();
+      $("#admin-error").hidden = true;
+      return;
+    }
+    const incoming = result.orders.map(normalizeOrder);
     const ids = new Set(orders.map((o) => o.id));
-    const newOnes = result.orders.filter(
+    const newOnes = incoming.filter(
       (o) => o.status === "pending" && !ids.has(o.id),
     );
     if (!firstLoad && newOnes.length) {
@@ -307,12 +309,14 @@ async function sync() {
     if (firstLoad && newOnes.length && sound.enabled) {
       sound.play(`TOC TOC. Tienes ${newOnes.length} solicitudes por aceptar.`);
     }
-    firstLoad = false;
-    orders = result.orders;
-    revision = result.revision;
-    serverDay = result.day;
+    orders = incoming;
     todayStats = result.today;
     renderInbox();
+    // No confirmamos esta revisión hasta que sus solicitudes estén visibles.
+    revision = result.revision;
+    serverDay = result.day;
+    firstLoad = false;
+    $("#admin-error").hidden = true;
   } catch (e) {
     $("#connection-state").textContent = "Reconectando";
     $("#connection-state").classList.remove("connected");
@@ -408,7 +412,6 @@ function renderRequests() {
       (!search ||
         `${o.name} ${o.address} ${o.id}`.toLocaleLowerCase().includes(search)),
   );
-  list.replaceChildren();
   $("#list-caption").textContent =
     `${filter === "pending" ? "SOLICITUDES ENTRANTES" : filter === "accepted" ? "SERVICIOS EN CAMINO" : "TODOS LOS SERVICIOS"} · ${showing.length}`;
   if (!showing.length) {
@@ -432,14 +435,47 @@ function renderRequests() {
           : "Mantén este panel abierto. Las nuevas solicitudes aparecen automáticamente.",
       ),
     );
-    list.append(n);
+    list.replaceChildren(n);
     return;
   }
-  showing.forEach((o, i) =>
-    list.append(
-      requestCard(o, opened.has(o.id) || (i === 0 && o.status === "pending")),
-    ),
-  );
+  const fragment = document.createDocumentFragment();
+  showing.forEach((o, i) => {
+    try {
+      fragment.append(
+        requestCard(o, opened.has(o.id) || (i === 0 && o.status === "pending")),
+      );
+    } catch {
+      // Una tarjeta incompleta conserva los datos y las acciones principales.
+      const fallback = el("article", "request-item request-fallback");
+      fallback.append(
+        el("h3", "", o.name),
+        el("p", "", o.address),
+        el(
+          "p",
+          "field-help",
+          `Solicitud #${o.id} · ${statusLabels[o.status] || "Revisar estado"}`,
+        ),
+      );
+      if (o.status === "pending") {
+        const accept = el(
+          "button",
+          "button button-primary",
+          "Aceptar y enviar domiciliario",
+        );
+        accept.addEventListener("click", () => openAction(o, "accepted"));
+        fallback.append(accept);
+      }
+      fallback.append(
+        el(
+          "p",
+          "field-help",
+          "Vista resumida disponible. Puedes actualizar para volver a cargar el detalle.",
+        ),
+      );
+      fragment.append(fallback);
+    }
+  });
+  list.replaceChildren(fragment);
 }
 function requestCard(o, open) {
   const card = el("article", `request-item status-${o.status}`);
@@ -507,24 +543,21 @@ function requestCard(o, open) {
     mapHost.append(mapPreview(o, city));
     const searchHost = el("div", "places-host");
     mapHost.append(searchHost);
-    autocomplete(searchHost, city, (p) => {
-      if (!inCity(p, city))
-        return notify("La dirección está fuera de la zona de operación.");
-      mapHost
-        .querySelector(".map-preview")
-        ?.replaceWith(mapPreview({ ...o, ...p }, city));
-      notify(
-        "Vista de consulta actualizada. La dirección solicitada por el cliente se conserva.",
-      );
-    });
-    if (!config.mapsApiKey)
-      mapHost.append(
-        el(
-          "p",
-          "field-help",
-          `La consulta en Google Maps incluye ${city.name}. Confirma que el resultado coincida con la dirección del cliente.`,
-        ),
-      );
+    autocomplete(
+      searchHost,
+      city,
+      (p) => {
+        if (!inCity(p, city))
+          return notify("La dirección está fuera de la zona de operación.");
+        mapHost
+          .querySelector(".map-preview")
+          ?.replaceWith(mapPreview({ ...o, ...p }, city));
+        notify(
+          "Vista de consulta actualizada. La dirección solicitada por el cliente se conserva.",
+        );
+      },
+      o.address,
+    );
   });
   if (open) mapDetails.open = true;
   body.append(info, mapDetails);
@@ -590,15 +623,17 @@ $("#action-form").addEventListener("submit", async (event) => {
   busy(b, true, "Guardando y notificando…");
   try {
     const d = Object.fromEntries(new FormData(event.currentTarget));
-    const r = await api(
-      "transition",
-      {
-        ...d,
-        id: selected.id,
-        revision: selected.revision,
-        status: selected.targetStatus,
-      },
-      session.token,
+    const r = normalizeOrder(
+      await api(
+        "transition",
+        {
+          ...d,
+          id: selected.id,
+          revision: selected.revision,
+          status: selected.targetStatus,
+        },
+        session.token,
+      ),
     );
     orders = orders.map((o) => (o.id === r.id ? r : o));
     $("#action-dialog").close();

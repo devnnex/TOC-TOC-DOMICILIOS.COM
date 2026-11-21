@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { environment } from "./gas.mjs";
+import { stubMapFrames } from "./map-frames.mjs";
 
 // Prueba la interfaz de producción contra el Code.gs real, sin tocar el Sheet.
 export async function browserBackend(browser, errors) {
@@ -7,8 +8,11 @@ export async function browserBackend(browser, errors) {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     locale: "es-CO",
+    permissions: ["geolocation"],
+    geolocation: { latitude: 7.0653, longitude: -73.8547, accuracy: 124 },
   });
   const endpoint = "https://script.google.com/macros/s/mock/exec";
+  await stubMapFrames(context);
   await context.route("**/config.js", (route) =>
     route.fulfill({
       contentType: "text/javascript",
@@ -94,10 +98,17 @@ export async function browserBackend(browser, errors) {
   const client = await context.newPage();
   watch(client);
   await client.goto("http://127.0.0.1:4173/index.html");
+  await client.locator("#request-launch").click();
+  await client
+    .locator("#detected-address")
+    .filter({ hasText: "Calle 49" })
+    .waitFor();
+  await client
+    .locator("#location-status")
+    .filter({ hasText: "GPS ±124 m" })
+    .waitFor();
   await client.locator("[name=name]").fill("Prueba backend navegador");
   await client.locator("[name=phone]").fill("3001234567");
-  await client.locator("#address").fill("Calle 49 # 8-25");
-  await client.locator("[name=consent]").check();
   await client.locator("#submit-request").click();
   await client
     .locator("#tracking-title")
@@ -109,6 +120,15 @@ export async function browserBackend(browser, errors) {
     .locator(".request-item")
     .filter({ hasText: "Prueba backend navegador" });
   await card.waitFor();
+  const saved = server.context.rows_("Requests")[0];
+  if (
+    saved.lat !== 7.0653 ||
+    saved.lng !== -73.8547 ||
+    !saved.address.includes("Calle 49")
+  )
+    throw new Error(
+      "El servicio debe conservar el GPS original y la dirección resuelta por Google.",
+    );
   await card
     .getByRole("button", { name: "Aceptar y enviar domiciliario" })
     .click();

@@ -3,6 +3,7 @@ const { chromium } = await import(
 );
 import fs from "node:fs";
 import { browserBackend } from "./support/browser-backend.mjs";
+import { stubMapFrames } from "./support/map-frames.mjs";
 (async () => {
   const browser = await chromium.launch({
     headless: true,
@@ -17,6 +18,7 @@ import { browserBackend } from "./support/browser-backend.mjs";
     geolocation: { latitude: 7.065, longitude: -73.854, accuracy: 20 },
   });
   const errors = [];
+  await stubMapFrames(context);
   const watch = (p) => {
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("console", (m) => {
@@ -35,18 +37,35 @@ import { browserBackend } from "./support/browser-backend.mjs";
   await admin.locator("#sound-button").click();
   await admin.locator("#sound-button.enabled").waitFor();
   const client = await context.newPage();
+  globalThis.qaClient = client;
   watch(client);
   await client.goto("http://127.0.0.1:4173/index.html?demo=1");
   await client.screenshot({
     path: "test-results/client-desktop.png",
     fullPage: true,
   });
+  await client.locator("#request-launch").click();
+  await client.locator("#request-dialog[open]").waitFor();
+  await client
+    .locator("#detected-address")
+    .filter({ hasText: "Calle 49" })
+    .waitFor();
+  if (
+    !(await client.locator("#client-map iframe").getAttribute("src")).includes(
+      "q=7.065",
+    )
+  )
+    throw new Error("El mapa debe usar las coordenadas GPS del cliente.");
+  await client.screenshot({
+    path: "test-results/client-location-preview.png",
+    fullPage: true,
+  });
   await client.locator("[name=name]").fill("Camila QA");
   await client.locator("[name=phone]").fill("3001234567");
-  await client.locator("#address").fill("Calle 49 # 8-25");
+  await client.locator("#remember-contact").check();
+  await client.locator("#service-options-details summary").click();
   await client.locator("[name=reference]").fill("Casa de puerta azul");
   await client.locator("[name=notes]").fill("Prueba de interfaz");
-  await client.locator("[name=consent]").check();
   await client.locator("#submit-request").click();
   await client.locator("#tracking-dialog[open]").waitFor();
   await client
@@ -54,9 +73,18 @@ import { browserBackend } from "./support/browser-backend.mjs";
     .filter({ hasText: "Tu solicitud ya está" })
     .waitFor();
   await admin.bringToFront();
+  // Reproduce el caso real: Sheets devuelve el celular como un número.
+  await client.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem("toc-demo-db-v1"));
+    d.orders.find((o) => o.name === "Camila QA").phone = 3001234567;
+    d.revision = crypto.randomUUID();
+    localStorage.setItem("toc-demo-db-v1", JSON.stringify(d));
+  });
   await admin.locator("#refresh-button").click();
   const card = admin.locator(".request-item").filter({ hasText: "Camila QA" });
   await card.waitFor();
+  await admin.locator("#requests-list").evaluate((n) => n.replaceChildren());
+  await card.waitFor({ timeout: 15000 }); // Se recupera incluso con una respuesta sin cambios.
   const details = card.locator("details").first();
   if (
     !(await details.getAttribute("open")) &&
@@ -142,7 +170,12 @@ import { browserBackend } from "./support/browser-backend.mjs";
     )
   )
     throw Error("Desborde horizontal en admin móvil");
+  await client.bringToFront();
   await client.locator("#new-request").click();
+  await client.locator("#request-dialog[open]").waitFor();
+  if ((await client.locator("[name=name]").inputValue()) !== "Camila QA")
+    throw new Error("Los datos guardados con permiso deben reutilizarse.");
+  await client.locator("#close-request").click();
   await client.setViewportSize({ width: 390, height: 844 });
   await client.screenshot({
     path: "test-results/client-mobile.png",
@@ -154,11 +187,27 @@ import { browserBackend } from "./support/browser-backend.mjs";
     )
   )
     throw Error("Desborde horizontal en cliente móvil");
-  await client.locator("#locate-button").click();
+  // El segundo recorrido comprueba la alternativa explícita cuando se deniega GPS.
+  await client.evaluate(() => {
+    navigator.geolocation.getCurrentPosition = (success, error) =>
+      error({ code: 1 });
+  });
+  await client.locator("#request-launch").click();
   await client
     .locator("#location-status")
-    .filter({ hasText: "Ubicación encontrada" })
+    .filter({ hasText: "No se autorizó" })
     .waitFor();
+  await client.locator("#manual-address").waitFor();
+  await client.locator("#address").fill("Calle 50 # 10-20");
+  await client.locator("#search-address").click();
+  await client
+    .locator("#location-chip")
+    .filter({ hasText: "PUNTO CONFIRMADO" })
+    .waitFor();
+  if ((await client.locator("#locate-button svg").count()) !== 1)
+    throw new Error(
+      "El botón GPS debe conservar su icono y etiquetas después de cambiar de estado.",
+    );
   // La interfaz de producción debe informar que no está conectada, sin enviar un éxito ficticio.
   const prod = await context.newPage();
   watch(prod);
@@ -198,6 +247,9 @@ import { browserBackend } from "./support/browser-backend.mjs";
       "Alta automática obligatoria del primer jefe",
       "Validación del código privado y confirmación de contraseña",
       "Ingreso normal tras el alta y aviso de backend anterior",
+      "Botón circular, GPS y mapa incrustado sin clave",
+      "Tarjeta visible con celular numérico y recuperación de lista vacía",
+      "GPS denegado: búsqueda manual integrada y botón sin texto pegado",
     ],
   };
   fs.writeFileSync(
@@ -207,7 +259,26 @@ import { browserBackend } from "./support/browser-backend.mjs";
   console.log(JSON.stringify(report, null, 2));
   await browser.close();
   if (errors.length) process.exitCode = 1;
-})().catch((e) => {
+})().catch(async (e) => {
+  if (globalThis.qaClient) {
+    try {
+      console.log(
+        "Client state:",
+        await globalThis.qaClient.evaluate(() => ({
+          hidden: document.hidden,
+          requestOpen: document.querySelector("#request-dialog")?.open,
+          trackingOpen: document.querySelector("#tracking-dialog")?.open,
+          location: document.querySelector("#location-status")?.textContent,
+          address: document.querySelector("#address")?.value,
+          launch: document.querySelector("#launch-label")?.textContent,
+        })),
+      );
+      await globalThis.qaClient.screenshot({
+        path: "test-results/client-failure.png",
+        fullPage: true,
+      });
+    } catch {}
+  }
   console.error(e);
   process.exit(1);
 });

@@ -1,5 +1,5 @@
 // Aislado de producción. Solo se importa con ?demo=1 y nunca llama a Apps Script.
-import { storageGet, storageSet, token, config } from "./core.js";
+import { storageGet, storageSet, token, config } from "./core.js?v=1.2.0";
 const KEY = "toc-demo-db-v1";
 const today = () =>
   new Intl.DateTimeFormat("en-CA", {
@@ -131,6 +131,25 @@ export async function request(action, data, session) {
   };
   if (action === "challenge")
     return { salt: "toc-demo-" + data.email.toLowerCase(), iterations: 310000 };
+  if (action === "resolveLocation")
+    return {
+      address: "Calle 49 # 8-25 · Dirección de ejemplo",
+      lat: data.lat,
+      lng: data.lng,
+      provider: "Demostración local",
+      approximate: true,
+    };
+  if (action === "searchAddress")
+    return {
+      results: [
+        {
+          address: `${data.address}, ${config.city.name} · Ejemplo`,
+          lat: config.city.lat,
+          lng: config.city.lng,
+        },
+      ],
+      provider: "Demostración local",
+    };
   if (action === "login" || action === "bootstrap" || action === "demoLogin")
     return {
       token: d.users[0].id,
@@ -168,7 +187,7 @@ export async function request(action, data, session) {
       lng: data.lng,
       locationAt: data.locationAt,
       accuracy: data.accuracy,
-      revision: o.revision + 1,
+      address: data.address || o.address,
     });
     save(d);
     return { updated: true };

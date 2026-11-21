@@ -52,16 +52,15 @@ El código de instalación se elimina al crear el primer jefe. Después se ingre
 
 Dentro de **Mi equipo**, el jefe crea administradores. Debe comunicarles la contraseña inicial por un canal privado. Cada administrador debe cambiarla al ingresar. Desactivarlo cierra sus sesiones. Restablecer su contraseña también revoca sus sesiones anteriores.
 
-## 4. Google Maps premium
+## 4. Google Maps integrado, sin clave de navegador
 
-En un proyecto de Google Cloud con facturación habilitada, activa **Maps JavaScript API**, **Places API (New)** y **Maps Embed API**. Crea una clave de navegador y restríngela:
+La vista usa un mapa HTML de Google incrustado con las coordenadas del cliente; no necesitas crear ni introducir una clave. El mapa, el satélite y la exploración del lugar se muestran dentro de la web del cliente y del administrador. Las imágenes de Street View dependen de la cobertura de Google y pueden no ser recientes.
 
-- Por referente HTTP: el dominio de producción y las rutas necesarias. Para GitHub Pages: `https://devnnex.github.io/*`. Añade localhost solo si vas a probar allí.
-- Por API: exclusivamente las tres APIs anteriores.
+La dirección automática y la búsqueda manual usan `Maps.newGeocoder()` integrado en Apps Script. **Debes copiar el Code.gs de la versión 1.2.0 o posterior y actualizar la implementación** para habilitar las acciones `resolveLocation` y `searchAddress`. No cambia el esquema de las hojas ni requiere reiniciar datos. Consulta [la documentación del servicio](https://developers.google.com/apps-script/reference/maps/geocoder).
 
-Introduce esa clave pública restringida en `mapsApiKey` de `config.js`. Configura alertas de presupuesto y cuotas según tu operación. La clave de navegador es visible por diseño; sus restricciones son obligatorias para controlar su uso. Nunca uses una clave de servidor sin restricciones.
+Apps Script aplica cuotas de geocodificación según la cuenta. El sistema usa caché temporal, comprueba la zona y limita nuevas consultas a 900 por día de forma preventiva. En Script Properties, `MAPS_DAILY_LIMIT` permite ajustar ese presupuesto a la cuota real de tu cuenta, sin ampliarla. El GPS y la dirección manual siguen disponibles si la búsqueda falla o Google limita consultas. Los mapas incrustados son independientes de esa cuota de geocodificación. Revisa las [cuotas oficiales](https://developers.google.com/apps-script/guides/services/quotas).
 
-La búsqueda usa **PlaceAutocompleteElement** con país Colombia y límites de la ciudad. El servidor valida coordenadas contra el radio operativo. El administrador puede consultar un mapa, acercarlo, arrastrarlo y pasar a Street View. Si no hay cobertura de Street View, vuelve al mapa. Google no garantiza fotos recientes de todas las casas. El modo sin clave conserva el enlace de consulta en Google Maps y la dirección manual; no presenta un mapa ficticio como si fuera GPS real.
+La búsqueda añade siempre la ciudad del operador, valida las coordenadas y descarta resultados de otra zona. El mapa incrustado puede explorarse y acercarse; mover su vista no modifica las coordenadas enviadas. Para corregir el punto, utiliza **Escribir o corregir dirección → Ubicar** y selecciona el resultado, o mejora el GPS. No hay acceso programático al centro de un iframe de Google: no se presenta el desplazamiento visual como si cambiara la recogida. El mapa incluye los controles y la atribución de Google. Las funciones de Places Autocomplete y de un editor completo de pines requieren una integración API diferente y no son necesarias en este flujo.
 
 ## 5. Verificar la zona de operación
 
@@ -82,11 +81,11 @@ El repositorio no configura un dominio personalizado ni modifica DNS. Para un do
 ## 7. Prueba real antes de operar
 
 1. En admin, pulsa **Activar alertas** y luego **Configuración → Probar sonido y voz**.
-2. En otro dispositivo, abre index y solicita un servicio manual con datos de prueba identificables.
+2. En otro dispositivo, abre index, toca el botón circular **Solicitar domicilio**, autoriza el GPS y confirma el punto, nombre y celular con datos de prueba identificables.
 3. Mantén la página del cliente abierta. En admin verifica el nombre, dirección y mapa.
 4. Acepta asignando domiciliario, celular y tarifa. El cliente debe ver el cambio y escuchar el aviso si permite audio.
 5. Completa el servicio y comprueba historial y estadísticas.
-6. Repite con GPS, autorizándolo; verifica precisión, referencias y actualización de última ubicación.
+6. Verifica la dirección automática, precisión y actualización de última ubicación. Repite denegando GPS y usando la búsqueda manual dentro de la página.
 7. Revisa que el cliente pueda cancelar antes de aceptar y que no pueda hacerlo después desde ese botón.
 8. Crea un administrador de prueba, cambia su contraseña inicial y confirma que no puede gestionar usuarios.
 
@@ -97,7 +96,9 @@ No se implementan pagos, tarifas automáticas, seguimiento GPS del domiciliario 
 - **No conecta o devuelve HTML:** revisa `/exec`, acceso Cualquier persona, versión implementada y permisos del propietario. No reemplaces fetch por `no-cors`.
 - **No suena:** pulsa el botón de audio; comprueba volumen, permisos de sonido y voces disponibles. Bloquear el teléfono o suspender la pestaña puede impedir avisos. La interfaz sigue mostrando el estado.
 - **No hay GPS:** usa HTTPS, activa ubicación y permisos del navegador, o escribe manualmente.
-- **Mapa vacío:** revisa facturación, APIs habilitadas, restricciones y cobertura de Street View.
+- **Mapa vacío:** revisa conexión, bloqueadores y que el navegador permita cargar los iframes de Google. Si Street View no tiene imágenes del lugar, vuelve a Mapa o Satélite. No necesitas una clave.
+- **No aparece el nombre de la calle:** actualiza Code.gs y la implementación a la versión 1.2.0 o posterior; revisa las cuotas de Maps. Mientras tanto, puedes confirmar el GPS o escribir la dirección y una referencia.
+- **El contador muestra un servicio pero falta la tarjeta:** actualiza la web con recarga completa. La versión 1.2.0 corrige celulares numéricos de Sheets, confirma la revisión después del renderizado y recupera listas vacías. No edites ni elimines solicitudes para intentar corregirlo.
 - **Contraseña inicial:** el panel exige cambiarla antes de aceptar servicios.
 - **Cuotas o exceso de solicitudes:** consulta la página oficial de cuotas y reduce carga; la interfaz aplica espera creciente. Sheets no ofrece capacidad ilimitada.
 - **Edición manual del Sheet:** puede romper contadores o versiones. Usa el panel para operar; conserva los encabezados y las columnas.

@@ -7,6 +7,9 @@
 - Mantener el mantenimiento diario y su comprobación al ingresar, con ejecución en segundo plano para no frenar el acceso.
 - Preservar GPS o dirección manual, consultas limitadas a la ciudad del operador, seguimiento, avisos con sonido y voz, animaciones de espera y aceptación, historial y KPIs.
 - Diseño juvenil, premium y con sensación de velocidad: moto negra del tipo de referencia, casco abierto con visor y sin caja ni equipaje en la ilustración. Mantener la imagen optimizada.
+- Inicio del cliente: logo, moto y un botón circular animado inspirado en Ben 10. Al tocarlo se pide GPS y se abre la confirmación con dirección y mapa; los detalles opcionales no deben volver a ocupar el inicio.
+- Google Maps debe funcionar incrustado sin pedir al usuario una clave de navegador. La dirección y búsqueda se resuelven con el servicio Maps de Apps Script, validando ciudad y cuotas. No sustituir las coordenadas originales por el punto aproximado de la geocodificación. Mostrar la precisión sin prometer una puerta exacta. Mover el iframe no cambia la recogida.
+- Si el contador muestra una solicitud, su tarjeta debe quedar visible. Normalizar celulares numéricos de Sheets; no confirmar la revisión del sondeo antes de terminar el renderizado; conservar una vista resumida si falla un detalle. Los mapas no deben bloquear el listado.
 - Mantener HTML/CSS/JS nativos y una carga ligera. No prometer respuesta instantánea del servidor: depende de Apps Script y de sus cuotas. Respetar reducción de movimiento y requisitos de interacción para audio.
 - Ejecutar las verificaciones y pruebas apropiadas. Los tests del navegador usan el backend en memoria y deben estar aislados del Sheet real.
 - Si cambia Code.gs, avisar que el propietario debe copiarlo a Apps Script y actualizar la implementación conservando /exec. Un push a GitHub no actualiza Apps Script.

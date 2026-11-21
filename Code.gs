@@ -7,7 +7,7 @@
 const DB_ID = "1RY7f8Xuel5-tK9e_PQhXgscinU8AQN45pge5p-f16u8";
 const TZ = "America/Bogota";
 const SESSION_HOURS = 8;
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 const SCHEMA = {
   Requests: [
     "id",
@@ -218,6 +218,8 @@ function dispatch_(action, d, session) {
   if (action === "installationStatus") return installationStatus_();
   if (!PropertiesService.getScriptProperties().getProperty("PEPPER"))
     fail_("NOT_READY", "Primero ejecuta setup() en Apps Script.");
+  if (action === "resolveLocation") return resolveMapLocation_(d, true);
+  if (action === "searchAddress") return resolveMapLocation_(d, false);
   if (action === "challenge") {
     const email = email_(d.email);
     rate_("challenge:" + digest_(email), 25, 300);
@@ -260,6 +262,136 @@ function dispatch_(action, d, session) {
   if (action === "setUserActive") return setUserActive_(actor, d);
   if (action === "resetPassword") return resetPassword_(actor, d);
   fail_("UNKNOWN_ACTION", "Operación desconocida.");
+}
+
+/** Google Maps integrado en Apps Script. No requiere clave de navegador. */
+function resolveMapLocation_(d, reverse) {
+  const city = city_(text_(d.cityId, 60, true));
+  const input = reverse
+    ? location_(Object.assign({}, d, { locationMode: "gps" }), city)
+    : null;
+  const address = reverse ? "" : text_(d.address, 220, true);
+  if (!reverse && address.length < 4)
+    fail_("VALIDATION", "Escribe calle, número o nombre del lugar.");
+  const key =
+    "geocode:" +
+    digest_(
+      city.id +
+        ":" +
+        (reverse
+          ? input.lat.toFixed(5) + "," + input.lng.toFixed(5)
+          : address.toLowerCase()),
+    );
+  const cached = cache_().get(key);
+  if (cached) {
+    const value = JSON.parse(cached);
+    // Una respuesta de calle en caché nunca sustituye el punto GPS original.
+    if (reverse) {
+      value.lat = input.lat;
+      value.lng = input.lng;
+    }
+    return value;
+  }
+  locked_(function () {
+    rateUnlocked_("maps-geocode", 60, 60);
+    const props = PropertiesService.getScriptProperties(),
+      today = day_(now_());
+    const calls =
+      props.getProperty("mapsDay") === today
+        ? Number(props.getProperty("mapsCalls") || 0)
+        : 0;
+    const limit = Math.max(
+      1,
+      Number(props.getProperty("MAPS_DAILY_LIMIT")) || 900,
+    );
+    if (calls >= limit)
+      fail_(
+        "MAPS_LIMIT",
+        "La búsqueda de direcciones está temporalmente ocupada. Puedes confirmar tu GPS o escribir la dirección.",
+      );
+    props.setProperty("mapsDay", today);
+    props.setProperty("mapsCalls", String(calls + 1));
+  });
+  let response;
+  try {
+    const geocoder = Maps.newGeocoder()
+      .setLanguage("es")
+      .setRegion("co")
+      .setBounds(
+        city.bounds.south,
+        city.bounds.west,
+        city.bounds.north,
+        city.bounds.east,
+      );
+    response = reverse
+      ? geocoder.reverseGeocode(input.lat, input.lng)
+      : geocoder.geocode(address + ", " + city.name + ", Colombia");
+  } catch (error) {
+    fail_(
+      "MAPS_UNAVAILABLE",
+      "No pudimos obtener la dirección de Google en este momento. Conserva tu GPS o escribe la dirección y una referencia.",
+    );
+  }
+  if (response.status && !["OK", "ZERO_RESULTS"].includes(response.status))
+    fail_(
+      "MAPS_UNAVAILABLE",
+      "La búsqueda de Google no está disponible en este momento. Puedes confirmar tu GPS o escribir la dirección.",
+    );
+  const matches = (response.results || []).filter(function (result) {
+    const components = (result.address_components || []).filter(function (c) {
+      return (
+        c.types.includes("locality") ||
+        c.types.includes("administrative_area_level_2")
+      );
+    });
+    if (
+      components.length &&
+      !components.some(function (c) {
+        return String(c.long_name)
+          .toLowerCase()
+          .includes(city.name.toLowerCase());
+      })
+    )
+      return false;
+    try {
+      location_(
+        {
+          lat: result.geometry.location.lat,
+          lng: result.geometry.location.lng,
+          locationMode: "manual_place",
+        },
+        city,
+      );
+      return true;
+    } catch (error) {
+      return false;
+    }
+  });
+  if (!matches.length)
+    fail_(
+      "ADDRESS_NOT_FOUND",
+      "No encontramos una dirección de la zona de " +
+        city.name +
+        ". Confirma tu punto o añade una referencia.",
+    );
+  const results = matches.slice(0, 5).map(function (r) {
+    return {
+      address: String(r.formatted_address).slice(0, 220),
+      lat: Number(r.geometry.location.lat),
+      lng: Number(r.geometry.location.lng),
+    };
+  });
+  const value = reverse
+    ? {
+        address: results[0].address,
+        lat: input.lat,
+        lng: input.lng,
+        provider: "Google Maps",
+        approximate: true,
+      }
+    : { results: results, provider: "Google Maps" };
+  cache_().put(key, JSON.stringify(value), 1800);
+  return value;
 }
 
 /** Estado público mínimo: nunca devuelve correos, usuarios ni el código privado. */
@@ -623,6 +755,7 @@ function updateLocation_(d) {
     );
     if (loc.lat === "") fail_("VALIDATION", "Ubicación incompleta.");
     Object.assign(o, loc);
+    if (d.address != null) o.address = text_(d.address, 220, true);
     o.updatedAt = now_();
     write_("Requests", o);
     invalidateOrder_(o);
@@ -1189,6 +1322,11 @@ function publicOrder_(o) {
     "status",
     "cityId",
     "address",
+    "lat",
+    "lng",
+    "accuracy",
+    "locationAt",
+    "locationMode",
     "reference",
     "service",
     "courier",
@@ -1282,6 +1420,10 @@ function object_(name, values, row) {
         : typeof v === "string" && /^'[=+\-@]/.test(v)
           ? v.slice(1)
           : v;
+  });
+  ["phone", "courierPhone"].forEach(function (k) {
+    if (Object.prototype.hasOwnProperty.call(o, k))
+      o[k] = String(o[k] == null ? "" : o[k]);
   });
   return o;
 }

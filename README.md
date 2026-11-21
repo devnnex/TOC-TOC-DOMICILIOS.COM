@@ -2,10 +2,10 @@
 
 Landing para clientes, panel operativo privado y backend de Google Sheets. HTML, CSS y JavaScript nativos; sin frameworks, paquetes de ejecución ni proceso de compilación. La ilustración usa una moto negra, casco con visor y estilo juvenil, sin caja.
 
-- `index.html`: solicitar, GPS opcional, dirección manual, seguimiento, cancelación antes de aceptar, animaciones y avisos de voz.
+- `index.html`: inicio con logo, moto y botón circular de activación inspirado en Ben 10. Al pulsarlo pide GPS y abre la confirmación con dirección y mapa de Google; conserva alternativas manuales, seguimiento, animaciones y voz.
 - `admin.html`: servicios, asignación de domiciliario y tarifa, mapa desplegable, Street View, búsqueda de direcciones, historial, estadísticas, administradores y contraseñas.
 - `Code.gs`: backend completo, creación de hojas, sesiones, permisos, validaciones, control de concurrencia, caché, auditoría y mantenimiento diario.
-- `config.js`: URL pública de Apps Script y clave de Google Maps restringida al sitio. No contiene secretos.
+- `config.js`: URL pública de Apps Script y ciudad operativa. No contiene secretos ni necesita una clave de Google Maps.
 
 **La aplicación está entregada como código; producción requiere ejecutar y desplegar Apps Script y configurar su URL.** Una página sin backend configurado muestra ese estado y ofrece una demostración explícita. Nunca simula haber enviado un servicio real.
 
@@ -27,6 +27,10 @@ Abre `http://127.0.0.1:4173/index.html?demo=1` y `http://127.0.0.1:4173/admin.ht
 
 El cliente envía una solicitud y conserva un identificador y un token de seguimiento aleatorio. El administrador la acepta asignando nombre, celular y tarifa. El servidor verifica permisos, ciudad, estado y versión bajo un bloqueo antes de guardar. El siguiente sondeo del cliente muestra la nueva animación e intenta reproducir sonido y voz.
 
+El cliente pulsa el botón circular, autoriza el GPS y confirma el lugar en un mapa HTML de Google dentro de la página. El servicio `Maps.newGeocoder()` de Apps Script obtiene la dirección a partir del GPS; el punto enviado sigue siendo el original del dispositivo, aunque la dirección de Google corresponda a una calle cercana. El cliente y el administrador reciben las mismas coordenadas, dirección, precisión y fecha de ubicación. Un margen GPS de 124 metros no equivale a una puerta exacta: se muestra el margen y se permite mejorar la posición, buscar otra dirección o añadir una referencia. Explorar el mapa incrustado no cambia el punto compartido. No se carga el SDK de Maps en el inicio ni se exige clave de navegador.
+
+El nombre y celular se piden en la confirmación y pueden recordarse para futuros servicios únicamente si el cliente marca esa opción. Tipo de servicio, referencia e instrucciones permanecen disponibles en un bloque opcional. En el panel, la búsqueda de direcciones también consulta Google desde Apps Script e incluye siempre la ciudad operativa. Mapa, satélite y vista del lugar permanecen incrustados en ambos lados.
+
 Los jefes crean administradores de su ciudad, desactivan accesos y restablecen contraseñas. Los administradores deben cambiar su contraseña inicial antes de operar. No existe una contraseña predeterminada en el repositorio. Las cuentas de jefe adicionales se gestionan por el propietario del Sheet, no desde una ruta pública.
 
 Al abrir admin.html sin sesión, el sistema verifica el estado de instalación. Si Users está vacía, exige crear al primer jefe y muestra directamente el formulario con código privado y confirmación de contraseña. Cuando ya hay una cuenta, presenta el ingreso normal. El estado público no expone datos de usuarios. Si el backend desplegado es anterior a la versión 1.1.0, la interfaz explica cómo actualizarlo en lugar de interpretar una falta de autenticación como si fuera una cuenta existente.
@@ -34,6 +38,10 @@ Al abrir admin.html sin sesión, el sistema verifica el estado de instalación. 
 ## Rendimiento y límites
 
 La respuesta visual al clic es local. La confirmación del servidor depende de Google. Panel: sondeo cada 4 segundos; cliente: cada 5 segundos, más latencia. No hay WebSockets ni garantía de entrega instantánea. Al ocultar la pestaña se reduce el sondeo a 30 segundos; los errores aplican espera creciente. Al regresar, se consulta de nuevo. Las respuestas sin cambios evitan releer solicitudes; los mapas se cargan al desplegarlos.
+
+La geocodificación utiliza las cuotas del servicio Maps de Apps Script, con caché de 30 minutos, límites de frecuencia y un presupuesto preventivo de 900 consultas nuevas al día por proyecto. El propietario puede ajustar `MAPS_DAILY_LIMIT` en Script Properties según la cuota real de su cuenta; no cambia los límites que aplica Google. Si Google o su cuota fallan, el punto GPS y la entrada manual siguen disponibles. El HTML incrustado no necesita clave; no equivale a integrar todas las funciones de Places Autocomplete o de Maps JavaScript.
+
+El panel normaliza teléfonos numéricos que pueda devolver Sheets y construye las tarjetas antes de sustituir la lista. Solo confirma la revisión recibida después de renderizar; una respuesta sin cambios puede reconstruir una lista que haya quedado vacía. Un error de detalle conserva una tarjeta resumida y la acción de aceptación.
 
 Sheets/Apps Script tiene cuotas y límites de concurrencia. Es apropiado para una operación local de volumen moderado, no para prometer latencia de milisegundos ni escala ilimitada. Hay un límite de 10.000 solicitudes en la hoja operativa y límites de frecuencia orientativos en caché. La caché puede ser desalojada por Google; no equivale a protección perimetral contra ataques. Para una operación pública de alto tráfico hará falta un backend con controles de red y un transporte de eventos.
 
@@ -53,11 +61,13 @@ Las pruebas ejecutan el `Code.gs` real sobre un adaptador en memoria de los serv
 
 La prueba del navegador está en `tests/browser.mjs`. Con el servidor local en ejecución, instala Playwright como herramienta de desarrollo (`npm install --no-save playwright` y `npx playwright install chromium`) y ejecuta `npm run test:browser`. Guarda capturas y un informe en `test-results/`, excluido del repositorio. Se pueden usar instalaciones existentes mediante `TOC_PLAYWRIGHT_MODULE` (ruta de módulo ESM) y `TOC_BROWSER_EXECUTABLE` (ejecutable Chromium). Verifica cliente/admin en dos pestañas, aceptación, recuperación, finalización, estadísticas, equipo, GPS simulado y ausencia de errores del navegador. También prueba el flujo de producción contra el `Code.gs` real ejecutado sobre el adaptador en memoria: login con contraseña derivada, solicitud, aceptación, creación de un administrador, cambio inicial obligatorio y permisos. No envía datos al Sheet real. El audio se comprueba a nivel de AudioContext y ejecución; la audición real y la voz del dispositivo se validan en el teléfono.
 
+Las pruebas funcionales sustituyen el contenido de los iframes externos para aislar fallos de red y scripts ajenos. `npm run test:maps-live` comprueba por separado la carga de Google Maps y Street View reales dentro del cliente, sin clave y usando un punto de ejemplo de Barrancabermeja. El adaptador de Maps del backend es de prueba: la geocodificación real de Apps Script se comprueba después de actualizar su implementación a 1.2.0 o posterior.
+
 ## Referencias de implementación
 
 - [Aplicaciones web de Apps Script](https://developers.google.com/apps-script/guides/web)
 - [Cuotas de Apps Script](https://developers.google.com/apps-script/guides/services/quotas)
-- [Autocomplete de Places](https://developers.google.com/maps/documentation/javascript/place-autocomplete-new)
-- [Mapas incrustados y Street View](https://developers.google.com/maps/documentation/embed/embedding-map)
+- [Geocoder integrado de Apps Script](https://developers.google.com/apps-script/reference/maps/geocoder)
+- [Compartir e incrustar un mapa de Google](https://support.google.com/maps/answer/144361)
 
 La ilustración se generó con la herramienta integrada imagegen; el prompt está en [assets/ARTWORK.md](assets/ARTWORK.md). El recurso final es `assets/courier.webp` (850 × 850, aproximadamente 78 KB). El símbolo `assets/mark.svg` es un monograma ligero de la interfaz, independiente de la ilustración.
