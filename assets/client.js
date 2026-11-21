@@ -21,9 +21,9 @@ import {
   inCity,
   time,
   distance,
-} from "./core.js?v=1.3.5";
-import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.5";
-import { initPwa, syncPush, restoreDeviceTracking } from "./pwa.js?v=1.3.5";
+} from "./core.js?v=1.3.6";
+import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.6";
+import { initPwa, syncPush, restoreDeviceTracking } from "./pwa.js?v=1.3.6";
 banner();
 wireDialogs();
 const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",
@@ -56,9 +56,9 @@ initPwa({
 window.addEventListener("toc:push-state", (event) => {
   if (event.detail.role !== "client") return;
   if (event.detail.enabled) {
-    $("#keep-open-title").textContent = "Avisos activados";
+    $("#keep-open-title").textContent = "Te avisamos de tu pedido";
     $("#keep-open-description").textContent =
-      "Puedes salir de esta página. Tu dispositivo debe permitir los avisos; aquí seguirás viendo el estado del servicio.";
+      "Recibirás sus novedades en este dispositivo.";
   }
 });
 window.addEventListener("toc:audio-state", () => {
@@ -518,7 +518,7 @@ function renderTracking(o) {
     text = {
       pending: [
         "Tu solicitud ya está en la ruta.",
-        "El equipo está revisando tu servicio. Mantén esta página abierta para recibir la confirmación.",
+        "El equipo está revisando tu servicio. Aquí puedes consultar las novedades.",
       ],
       accepted: [
         "¡Tu domiciliario está en camino!",

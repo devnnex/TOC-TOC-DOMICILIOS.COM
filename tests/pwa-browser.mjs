@@ -67,10 +67,14 @@ try {
   });
   await cdp.send("ServiceWorker.enable");
   const admin = await context.newPage();
-  // A missed setup can be completed only by the authenticated owner.
+  // Public preparation is automatic and cannot grant account privileges.
   backend.tables.delete("PushSubscriptions");
   backend.tables.delete("PushEvents");
   await admin.goto(base + "admin.html");
+  await until(
+    () => !!backend.props.get("PUSH_PUBLIC_KEY"),
+    "La visita no preparó los avisos automáticamente.",
+  );
   await admin.locator("#login-form [name=email]").fill("jefe@example.com");
   await admin
     .locator("#login-form [name=password]")
@@ -78,7 +82,6 @@ try {
   await admin.locator("#login-submit").click();
   await admin.locator("#requests-list .empty-state").waitFor();
   await admin.evaluate(() => navigator.serviceWorker.ready.then(() => true));
-  await admin.locator("#sound-button").click();
   await admin
     .locator("#sound-button span")
     .filter({ hasText: "Avisos activados" })
@@ -86,7 +89,7 @@ try {
   assert.equal(backend.props.get("PUSH_PUBLIC_KEY").length, 87);
   assert.equal(backend.context.rows_("PushSubscriptions").length, 1);
   report.push(
-    "Activación desde el panel: WebCrypto y backend reales en memoria.",
+    "Preparación automática antes de iniciar sesión y vinculación automática al ingresar, sin botón ni autorización del jefe.",
   );
   assert.ok(registrationId, "Service worker registration missing");
   await admin.screenshot({
@@ -193,10 +196,9 @@ try {
   );
   await client.reload();
   await client.locator("#tracking-dialog[open]").waitFor();
-  await client.locator("[data-enable-push]").click();
   await client
-    .locator("#keep-open-title")
-    .filter({ hasText: "Avisos activados" })
+    .locator("#keep-open-description")
+    .filter({ hasText: "Recibirás" })
     .waitFor();
   const priorGrant = backend.context
       .rows_("PushSubscriptions")
@@ -261,7 +263,6 @@ try {
   );
   await another.reload();
   await another.locator("#tracking-dialog[open]").waitFor();
-  await another.locator("[data-enable-push]").click();
   await until(
     () =>
       backend.context
@@ -271,7 +272,7 @@ try {
   );
   await another.bringToFront();
   await another.evaluate(async () => {
-    const { sound } = await import("./assets/core.js?v=1.3.5");
+    const { sound } = await import("./assets/core.js?v=1.3.6");
     await sound.enable();
     await sound.context.suspend();
     window.resumeAudio = sound.context.resume.bind(sound.context);
@@ -387,10 +388,9 @@ try {
   try {
     const automatic = await permissions.newPage();
     await automatic.goto(base + "index.html");
-    await automatic
-      .locator("[data-permission-intro]")
-      .filter({ hasText: "Acepta los avisos" })
-      .waitFor();
+    await automatic.waitForFunction(
+      () => document.body.dataset.notificationsReady === "true",
+    );
     await automatic.mouse.move(100, 100);
     await automatic.mouse.wheel(0, 100);
     await automatic.evaluate(() =>
@@ -408,10 +408,9 @@ try {
     await automatic.close();
     const dismissed = await permissions.newPage();
     await dismissed.goto(base + "index.html");
-    await dismissed
-      .locator("[data-permission-intro]")
-      .filter({ hasText: "Acepta los avisos" })
-      .waitFor();
+    await dismissed.waitForFunction(
+      () => document.body.dataset.notificationsReady === "true",
+    );
     await dismissed.evaluate(() => (window.permissionResponse = "default"));
     await dismissed.keyboard.press("Enter");
     await until(
@@ -423,10 +422,9 @@ try {
     await dismissed.close();
     const denied = await permissions.newPage();
     await denied.goto(base + "index.html");
-    await denied
-      .locator("[data-permission-intro]")
-      .filter({ hasText: "Acepta los avisos" })
-      .waitFor();
+    await denied.waitForFunction(
+      () => document.body.dataset.notificationsReady === "true",
+    );
     await denied.evaluate(() => (window.permissionResponse = "denied"));
     await denied.locator(".launch-city").click();
     await until(
@@ -461,7 +459,7 @@ try {
     });
     await page.goto(base + "index.html");
     const ready = await page.evaluate(async () => {
-      const pwa = await import("./assets/pwa.js?v=1.3.5");
+      const pwa = await import("./assets/pwa.js?v=1.3.6");
       return pwa.enablePush();
     });
     assert.equal(ready, false);

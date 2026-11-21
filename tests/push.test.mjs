@@ -34,6 +34,27 @@ function ready() {
   ok(e.call("configurePush", k, e.owner));
   return { ...e, k };
 }
+test("avisos: cualquier visita prepara el sistema automáticamente sin autorizar como jefe", () => {
+  const e = environment({ createOwner: false });
+  ["PushSubscriptions", "PushEvents", "PushKeys"].forEach((n) =>
+    e.tables.delete(n),
+  );
+  const before = JSON.stringify(e.context.rows_("Users"));
+  const info = ok(e.call("pushInfo"));
+  assert.equal(info.enabled, true);
+  assert.equal(info.publicKey.length, 87);
+  assert.equal(JSON.stringify(e.context.rows_("Users")), before);
+  const secret = e.props.get("PUSH_PRIVATE_KEY");
+  assert.equal(JSON.stringify(info).includes(secret), false);
+  assert.equal(ok(e.call("pushInfo")).publicKey, info.publicKey);
+  assert.equal(e.props.get("PUSH_PRIVATE_KEY"), secret);
+  assert.equal(
+    e.triggers.filter((t) => t.getHandlerFunction() === "deliverPushQueue")
+      .length,
+    1,
+  );
+  assert.equal(ok(e.call("installationStatus")).state, "needs_owner");
+});
 test("avisos: payload cifrado RFC 8291 interoperable con OpenSSL y sin datos personales", () => {
   const e = ready(),
     ua = receiver();

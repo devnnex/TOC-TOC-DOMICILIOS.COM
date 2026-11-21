@@ -23,6 +23,48 @@
 .app-tool:hover {
   background: #f2f8ec;
 }
+.notification-control {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  flex-shrink: 0;
+}
+.notification-control[data-ready="true"]:after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #27815e;
+  border: 2px solid #fff;
+}
+.notification-options {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #60715e;
+}
+.notification-options > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  padding: 3px 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.notification-options > div {
+  padding-top: 8px;
+}
+.notification-options .app-tool {
+  font-size: 12px;
+  padding: 7px 10px;
+  min-height: 36px;
+}
+.notification-options .app-message {
+  margin-block: 8px;
+}
 .app-tool .icon {
   width: 17px;
   height: 17px;

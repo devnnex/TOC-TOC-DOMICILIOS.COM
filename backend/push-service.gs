@@ -12,6 +12,66 @@ function pushInfo_() {
     version: APP_VERSION,
   };
 }
+/** Fixed, idempotent system preparation. Never accepts a caller's private key. */
+function ensurePushReady_() {
+  const info = pushInfo_();
+  if (info.enabled) return info;
+  return locked_(function () {
+    if (pushInfo_().enabled) return pushInfo_();
+    ["PushSubscriptions", "PushEvents", "PushKeys"].forEach(function (name) {
+      const s = book_().getSheetByName(name) || book_().insertSheet(name),
+        columns = SCHEMA[name];
+      if (
+        s.getLastRow() &&
+        JSON.stringify(s.getRange(1, 1, 1, columns.length).getValues()[0]) !==
+          JSON.stringify(columns)
+      )
+        fail_(
+          "PUSH_SETUP_REQUIRED",
+          "No pudimos preparar las notificaciones. Vuelve a intentar.",
+        );
+      if (!s.getLastRow())
+        s.getRange(1, 1, 1, columns.length).setValues([columns]);
+      s.setFrozenRows(1);
+    });
+    const props = PropertiesService.getScriptProperties();
+    if (
+      !props.getProperty("PUSH_PRIVATE_KEY") ||
+      !props.getProperty("PUSH_PUBLIC_KEY")
+    ) {
+      let secret, publicKey;
+      for (let i = 0; i < 8; i++) {
+        secret = digest_(random_() + random_() + random_() + random_())
+          .match(/../g)
+          .map(function (h) {
+            return parseInt(h, 16);
+          });
+        try {
+          publicKey = TocPushCrypto.publicKey(secret);
+          break;
+        } catch {}
+      }
+      if (!publicKey)
+        fail_(
+          "PUSH_SETUP_REQUIRED",
+          "No pudimos preparar las notificaciones. Vuelve a intentar.",
+        );
+      props.setProperty("PUSH_PRIVATE_KEY", pushB64_(secret));
+      props.setProperty("PUSH_PUBLIC_KEY", pushB64_(publicKey));
+    }
+    if (
+      !ScriptApp.getProjectTriggers().some(function (t) {
+        return t.getHandlerFunction() === "deliverPushQueue";
+      })
+    )
+      ScriptApp.newTrigger("deliverPushQueue")
+        .timeBased()
+        .everyMinutes(1)
+        .create();
+    SpreadsheetApp.flush();
+    return pushInfo_();
+  });
+}
 function pushBytes_(text) {
   return Utilities.base64DecodeWebSafe(String(text)).map(function (b) {
     return (b + 256) % 256;
@@ -130,11 +190,7 @@ function pushPendingCount_(cityId) {
   );
 }
 function subscribePush_(d, session) {
-  if (!pushInfo_().enabled)
-    fail_(
-      "PUSH_SETUP_REQUIRED",
-      "El jefe debe activar primero los avisos del equipo.",
-    );
+  ensurePushReady_();
   const target =
     d.scope === "admin" ? authenticate_(session) : authorizeTracking_(d);
   if (d.scope !== "admin" && d.scope !== "client")

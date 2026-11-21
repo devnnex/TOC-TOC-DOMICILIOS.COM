@@ -6,8 +6,8 @@ import {
   sound,
   storageGet,
   storageSet,
-} from "./core.js?v=1.3.5";
-import "./pwa-store.js?v=1.3.5";
+} from "./core.js?v=1.3.6";
+import "./pwa-store.js?v=1.3.6";
 const ROOT = new URL("../", import.meta.url).href,
   store = globalThis.TocPwaStore;
 let registration,
@@ -37,29 +37,24 @@ const supported = () =>
   "PushManager" in window &&
   "Notification" in window;
 const emit = (detail) => {
-  if (detail.enabled)
-    document
-      .querySelectorAll("[data-permission-intro]")
-      .forEach(
-        (n) => (n.textContent = "Avisos activados en este dispositivo."),
-      );
+  document.querySelectorAll("[data-notification-control]").forEach((n) => {
+    const ready = detail.enabled === true || detail.pending === true;
+    n.dataset.ready = String(ready);
+    n.title = ready ? "Notificaciones listas" : "Notificaciones";
+  });
   window.dispatchEvent(new CustomEvent("toc:push-state", { detail }));
 };
 function status(message) {
   document
     .querySelectorAll("[data-push-status]")
     .forEach((n) => (n.textContent = message));
-  document.querySelectorAll("[data-notification-status]").forEach((n) => {
-    n.textContent = message;
-    n.hidden = role === "client" && !targetProvider();
-  });
 }
 function showHealth(health) {
   let message =
     "Este dispositivo está vinculado. Falta comprobar la recepción de un aviso.";
   if (health.last?.state === "retry" || health.last?.state === "failed")
     message = /401|403|AUTHORIZATION/.test(health.last.error)
-      ? "El servicio de avisos fue rechazado. El jefe debe revisar su activación."
+      ? "No pudimos entregar el aviso. Puedes volver a comprobar las notificaciones."
       : "No pudimos entregar el último aviso. Pulsa Probar un aviso para comprobarlo de nuevo.";
   else if (health.last?.state === "skipped")
     message =
@@ -197,11 +192,9 @@ async function activatePush(automatic = false) {
     return false;
   }
   if (ios() && !installed()) {
-    status(
-      "Añade TocToc a tu pantalla de inicio y activa los avisos desde allí.",
-    );
+    status("Añade TocToc a tu pantalla de inicio para recibir notificaciones.");
     notify(
-      "En iPhone: Compartir → Añadir a pantalla de inicio. Después abre TocToc y activa los avisos.",
+      "En iPhone: Compartir → Añadir a pantalla de inicio. Después abre TocToc.",
     );
     return false;
   }
@@ -229,34 +222,14 @@ async function activatePush(automatic = false) {
       return false;
     }
     const reg = await ensureRegistration();
-    let info = await api("pushInfo");
-    if (
-      !info.available &&
-      role === "admin" &&
-      targetProvider()?.role === "owner"
-    )
-      info = await api("preparePush", {}, sessionProvider());
+    const info = await api("pushInfo");
     if (!info.available)
-      throw new Error("El equipo debe completar la activación de los avisos.");
-    if (!info.enabled) {
-      if (role !== "admin" || targetProvider()?.role !== "owner")
-        throw new Error("El jefe debe activar primero los avisos del equipo.");
-      const pair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-256" },
-        true,
-        ["sign", "verify"],
+      throw new Error(
+        "No pudimos preparar las notificaciones. Vuelve a intentar.",
       );
-      const [privateJwk, publicBytes] = await Promise.all([
-        crypto.subtle.exportKey("jwk", pair.privateKey),
-        crypto.subtle.exportKey("raw", pair.publicKey),
-      ]);
-      info = await api(
-        "configurePush",
-        {
-          privateKey: privateJwk.d,
-          publicKey: base64(new Uint8Array(publicBytes)),
-        },
-        sessionProvider(),
+    if (!info.enabled) {
+      throw new Error(
+        "Las notificaciones todavía no están disponibles. Vuelve a intentar.",
       );
     }
     let subscription = await reg.pushManager.getSubscription();
@@ -280,25 +253,26 @@ async function activatePush(automatic = false) {
       status("Avisos preparados. Se vincularán cuando solicites un servicio.");
       emit({ enabled: false, role, pending: true });
     }
-    document
-      .querySelectorAll("[data-enable-push]")
-      .forEach(
-        (n) => (n.textContent = ready ? "Comprobar avisos" : "Vincular avisos"),
-      );
+    document.querySelectorAll("[data-enable-push]").forEach((n) => {
+      if (!n.hasAttribute("data-notification-control"))
+        n.textContent = ready
+          ? "Comprobar notificaciones"
+          : "Permitir notificaciones";
+    });
     if (role === "client") repairPreviousServices(subscription).catch(() => {});
     return true;
   } catch (error) {
     status(
       error.code === "UNKNOWN_ACTION"
-        ? "El servicio de avisos necesita actualizarse. Avisa al jefe."
+        ? "Las notificaciones necesitan una actualización. Puedes seguir viendo tu pedido aquí."
         : ["UNAUTHORIZED", "PUSH_SETUP_REQUIRED"].includes(error.code)
-          ? "El equipo debe completar la activación de los avisos."
+          ? "No pudimos preparar las notificaciones. Vuelve a intentar."
           : error.message,
     );
     if (!automatic)
       notify(
         error.code === "UNKNOWN_ACTION"
-          ? "El servicio de avisos necesita actualizarse. Avisa al jefe."
+          ? "Las notificaciones necesitan una actualización. Puedes seguir viendo tu pedido aquí."
           : ["UNAUTHORIZED"].includes(error.code)
             ? "Los avisos necesitan completar su activación."
             : error.message,
@@ -370,7 +344,7 @@ function eligibleForPush() {
     return false;
   const target = targetProvider();
   if (role === "admin" && (!target || target.mustChangePassword)) return false;
-  return autoInfo.enabled || (role === "admin" && target.role === "owner");
+  return autoInfo.enabled;
 }
 async function prepareAutomaticPush() {
   if (demo || !supported() || (ios() && !installed()) || !registration) return;
@@ -379,18 +353,12 @@ async function prepareAutomaticPush() {
     // Fetch availability before a gesture; do not consume activation on a fetch.
     if (!autoInfo?.enabled) autoInfo = await api("pushInfo");
     if (!autoInfo.available) {
-      status(
-        "Los avisos al salir aún no están preparados. El jefe puede completarlos con Activar avisos.",
-      );
+      status("No pudimos preparar las notificaciones. Vuelve a intentar.");
       emit({ enabled: false, role });
     }
     if (eligibleForPush() && Notification.permission === "granted")
       await enablePush({ automatic: true });
-    document.querySelectorAll("[data-permission-intro]").forEach((n) => {
-      if (eligibleForPush() && Notification.permission === "default")
-        n.textContent =
-          "Acepta los avisos del navegador para recibir novedades aunque salgas.";
-    });
+    document.body.dataset.notificationsReady = String(eligibleForPush());
   })()
     .catch(() => {})
     .finally(() => (preparing = null));
