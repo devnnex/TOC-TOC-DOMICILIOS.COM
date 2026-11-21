@@ -109,7 +109,7 @@ export async function passwordKey(password, salt) {
 let demoModule;
 export async function api(action, data = {}, session = "") {
   if (demo) {
-    demoModule ||= import("./demo.js?v=1.3.0");
+    demoModule ||= import("./demo.js?v=1.3.1");
     return (await demoModule).request(action, data, session);
   }
   if (!config.apiUrl)

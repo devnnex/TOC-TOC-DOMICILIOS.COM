@@ -40,5 +40,5 @@ createServer(async (req, res) => {
     res.end("No encontrado");
   }
 }).listen(port, "127.0.0.1", () =>
-  console.log(`TOC TOC: http://127.0.0.1:${port}`),
+  console.log(`TocToc: http://127.0.0.1:${port}`),
 );

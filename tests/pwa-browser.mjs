@@ -20,6 +20,8 @@ const context = await browser.newContext({
   }),
   errors = [],
   report = [];
+const workerProtocol = await browser.newBrowserCDPSession();
+let protocolSequence = 0;
 context.on("page", (page) =>
   page.on("pageerror", (error) => errors.push(error.message)),
 );
@@ -45,7 +47,13 @@ try {
   await mkdir("test-results", { recursive: true });
   const observer = await context.newPage(),
     cdp = await context.newCDPSession(observer);
-  let registrationId;
+  let registrationId,
+    workerRunning = "";
+  cdp.on("ServiceWorker.workerVersionUpdated", ({ versions }) => {
+    for (const version of versions)
+      if (version.scriptURL === base + "sw.js")
+        workerRunning = version.runningStatus;
+  });
   cdp.on("ServiceWorker.workerRegistrationUpdated", ({ registrations }) => {
     for (const r of registrations)
       if (r.scopeURL === base && !r.isDeleted)
@@ -76,14 +84,12 @@ try {
     path: "test-results/admin-pwa-desktop.png",
     fullPage: true,
   });
-  const kpi = await admin
-    .locator(".kpi-card")
-    .evaluateAll((nodes) =>
-      nodes.map((n) => ({
-        background: getComputedStyle(n).backgroundColor,
-        value: getComputedStyle(n.querySelector(".kpi-value")).color,
-      })),
-    );
+  const kpi = await admin.locator(".kpi-card").evaluateAll((nodes) =>
+    nodes.map((n) => ({
+      background: getComputedStyle(n).backgroundColor,
+      value: getComputedStyle(n.querySelector(".kpi-value")).color,
+    })),
+  );
   assert.ok(
     kpi.every(
       (k) =>
@@ -103,20 +109,26 @@ try {
   };
   const created = ok(backend.call("createRequest", p));
   ok(backend.call("dispatchPush", created.pushDispatch));
-  await cdp.send("ServiceWorker.deliverPushMessage", {
-    origin: new URL(base).origin,
-    registrationId,
-    data: "",
-  });
-  const worker = context.serviceWorkers().find((w) => w.url().startsWith(base));
-  assert.ok(worker);
-  await assertNotification(worker, "Tienes servicios por aceptar");
+  async function wakeByPush() {
+    await cdp.send("ServiceWorker.stopAllWorkers");
+    await until(() => workerRunning === "stopped", "El worker no se detuvo.");
+    await cdp.send("ServiceWorker.deliverPushMessage", {
+      origin: new URL(base).origin,
+      registrationId,
+      data: "",
+    });
+    await until(
+      () => workerRunning === "running",
+      "El aviso no despertó el worker.",
+    );
+    return true;
+  }
+  await wakeByPush();
+  await assertNotification("Tienes servicios por aceptar");
   report.push(
-    "Notificación visible del equipo con todas las páginas de la app cerradas (entrada Push simulada por Chromium).",
+    "El aviso del equipo despierta el worker detenido, con todas las páginas cerradas (entrada Push simulada por Chromium).",
   );
-  await worker.evaluate(async () => {
-    for (const n of await self.registration.getNotifications()) n.close();
-  });
+  await workerNotifications(true);
   const client = await context.newPage();
   await client.goto(base + "index.html");
   await client.locator(".rider-stage img").evaluate((img) => img.decode());
@@ -186,12 +198,8 @@ try {
     ),
   );
   ok(backend.call("dispatchPush", accepted.pushDispatch));
-  await cdp.send("ServiceWorker.deliverPushMessage", {
-    origin: new URL(base).origin,
-    registrationId,
-    data: "",
-  });
-  await assertNotification(worker, "Tu domiciliario está en camino");
+  await wakeByPush();
+  await assertNotification("Tu domiciliario está en camino");
   report.push(
     "Aceptación entregada al cliente con la página cerrada y sin revelar dirección ni celular en el aviso.",
   );
@@ -209,6 +217,92 @@ try {
   report.push(
     "Inicio disponible sin conexión; operaciones de servicios requieren conexión.",
   );
+  await offline.close();
+  // A gesture requests permission, but never grants it on the person's behalf.
+  const permissions = await browser.newContext({
+    permissions: ["notifications"],
+  });
+  permissions.on("page", (page) =>
+    page.on("pageerror", (error) => errors.push(error.message)),
+  );
+  await permissions.addInitScript(() => {
+    let permission = "default",
+      subscription = null;
+    window.promptCalls = [];
+    Object.defineProperty(Notification, "permission", {
+      get: () => permission,
+      configurable: true,
+    });
+    Notification.requestPermission = () => {
+      window.promptCalls.push({ active: navigator.userActivation.isActive });
+      permission = window.permissionResponse || "granted";
+      return Promise.resolve(permission);
+    };
+    PushManager.prototype.getSubscription = async () => subscription;
+    PushManager.prototype.subscribe = async () =>
+      (subscription = {
+        endpoint: "https://fcm.googleapis.com/fcm/send/auto-qa",
+      });
+  });
+  try {
+    const automatic = await permissions.newPage();
+    await automatic.goto(base + "index.html");
+    await automatic
+      .locator("[data-permission-intro]")
+      .filter({ hasText: "Acepta los avisos" })
+      .waitFor();
+    await automatic.mouse.move(100, 100);
+    await automatic.mouse.wheel(0, 100);
+    await automatic.evaluate(() =>
+      document.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+    );
+    assert.equal(await automatic.evaluate(() => promptCalls.length), 0);
+    await automatic.locator(".launch-city").click();
+    await until(
+      async () => (await automatic.evaluate(() => promptCalls.length)) === 1,
+      "No se pidió permiso tras el clic.",
+    );
+    assert.equal(await automatic.evaluate(() => promptCalls[0].active), true);
+    await automatic.locator(".launch-city").click();
+    assert.equal(await automatic.evaluate(() => promptCalls.length), 1);
+    await automatic.close();
+    const dismissed = await permissions.newPage();
+    await dismissed.goto(base + "index.html");
+    await dismissed
+      .locator("[data-permission-intro]")
+      .filter({ hasText: "Acepta los avisos" })
+      .waitFor();
+    await dismissed.evaluate(() => (window.permissionResponse = "default"));
+    await dismissed.keyboard.press("Enter");
+    await until(
+      async () => (await dismissed.evaluate(() => promptCalls.length)) === 1,
+      "No se pidió permiso tras el teclado.",
+    );
+    await dismissed.locator(".launch-city").click();
+    assert.equal(await dismissed.evaluate(() => promptCalls.length), 1);
+    await dismissed.close();
+    const denied = await permissions.newPage();
+    await denied.goto(base + "index.html");
+    await denied
+      .locator("[data-permission-intro]")
+      .filter({ hasText: "Acepta los avisos" })
+      .waitFor();
+    await denied.evaluate(() => (window.permissionResponse = "denied"));
+    await denied.locator(".launch-city").click();
+    await until(
+      async () =>
+        (await denied.evaluate(() => Notification.permission)) === "denied",
+      "Falta la denegación.",
+    );
+    await denied.locator(".launch-city").click();
+    assert.equal(await denied.evaluate(() => promptCalls.length), 1);
+    await denied.close();
+    report.push(
+      "Permiso solicitado una vez tras clic o teclado; hover, scroll y eventos sintéticos no lo activan. Se respetan rechazo y cierre del aviso.",
+    );
+  } finally {
+    await permissions.close();
+  }
   assert.deepEqual(errors, []);
   await writeFile(
     "test-results/pwa-report.json",
@@ -221,15 +315,10 @@ try {
   await browser.close();
   await server.close();
 }
-async function assertNotification(worker, title) {
+async function assertNotification(title) {
+  let last = [];
   for (let attempt = 0; attempt < 80; attempt++) {
-    const list = await worker.evaluate(async () => {
-      return (await self.registration.getNotifications()).map((n) => ({
-        title: n.title,
-        body: n.body,
-        silent: n.silent,
-      }));
-    });
+    const list = (last = await workerNotifications());
     const found = list.find((n) => n.title === title);
     if (found) {
       assert.equal(found.silent, false);
@@ -237,5 +326,66 @@ async function assertNotification(worker, title) {
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error("No llegó la notificación: " + title);
+  throw new Error(
+    "No llegó la notificación: " +
+      title +
+      "; visibles: " +
+      JSON.stringify(last),
+  );
+}
+async function workerNotifications(close = false) {
+  const { targetInfos } = await workerProtocol.send("Target.getTargets");
+  const target = targetInfos
+    .filter((t) => t.type === "service_worker" && t.url === base + "sw.js")
+    .at(-1);
+  if (!target) return [];
+  const { sessionId } = await workerProtocol.send("Target.attachToTarget", {
+    targetId: target.targetId,
+    flatten: false,
+  });
+  const id = ++protocolSequence;
+  try {
+    const result = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        workerProtocol.off("Target.receivedMessageFromTarget", receive);
+        reject(new Error("No se pudo leer el worker."));
+      }, 5000);
+      function receive(event) {
+        if (event.sessionId !== sessionId) return;
+        const message = JSON.parse(event.message);
+        if (message.id !== id) return;
+        clearTimeout(timeout);
+        workerProtocol.off("Target.receivedMessageFromTarget", receive);
+        if (message.error) reject(new Error(message.error.message));
+        else resolve(message.result);
+      }
+      workerProtocol.on("Target.receivedMessageFromTarget", receive);
+    });
+    const expression = close
+      ? "(async()=>{for(const n of await self.registration.getNotifications())n.close();return []})()"
+      : "(async()=> (await self.registration.getNotifications()).map(n=>({title:n.title,body:n.body,silent:n.silent})))()";
+    await workerProtocol.send("Target.sendMessageToTarget", {
+      sessionId,
+      message: JSON.stringify({
+        id,
+        method: "Runtime.evaluate",
+        params: { expression, awaitPromise: true, returnByValue: true },
+      }),
+    });
+    const reply = await result;
+    if (reply.exceptionDetails)
+      throw new Error("No se pudo consultar los avisos del worker.");
+    return reply.result.value;
+  } finally {
+    await workerProtocol
+      .send("Target.detachFromTarget", { sessionId })
+      .catch(() => {});
+  }
+}
+async function until(predicate, message) {
+  for (let i = 0; i < 80; i++) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(message);
 }

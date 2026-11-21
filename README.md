@@ -1,4 +1,4 @@
-# TOC TOC · Domicilios
+# TocToc · Domicilios
 
 Landing instalable para clientes, panel operativo privado y backend de Google Sheets. HTML, CSS y JavaScript nativos; el navegador no necesita frameworks ni compilación. La ilustración usa una moto negra, casco con visor y estilo juvenil, sin caja y con fondo transparente.
 
@@ -24,6 +24,10 @@ npm test
 Abre `http://127.0.0.1:4173/index.html?demo=1` y `http://127.0.0.1:4173/admin.html?demo=1` en el mismo navegador. El modo demo comparte datos entre pestañas mediante almacenamiento local y jamás llama a Sheets. Los datos de ejemplo están identificados. En producción, clientes y operadores pueden usar dispositivos distintos porque el estado reside en Sheets.
 
 ## Operación
+
+En 1.3.1 la marca se muestra como **TocToc**. Cuando el servicio de avisos está preparado, el primer clic o uso válido del teclado inicia la solicitud de permiso de notificaciones. El visitante debe aceptarla en el navegador; hover, desplazamiento y eventos sintéticos no conceden permisos. Se intenta automáticamente una vez por pestaña/sesión; cerrar o rechazar el aviso no causa nuevas solicitudes automáticas. El botón de activación sigue disponible. Si el permiso ya está concedido, se recupera la suscripción automáticamente. La ubicación se pide al solicitar o mejorar el punto, separada de los avisos.
+
+La prueba PWA comprueba explícitamente que un evento Push de Chromium despierte el worker detenido y muestre la notificación del equipo y la aceptación del cliente sin ventanas de la app abiertas. Es una prueba del despertar del worker, no de la hibernación física del equipo ni de entrega real del proveedor. Las restricciones del sistema, permisos, conectividad y requisitos de iPhone/iPad siguen aplicando.
 
 La versión 1.3 incluye instalación independiente para cliente y equipo, iconos adaptables, inicio sin conexión y avisos Web Push. Para activarlos hay que actualizar **Code.gs y appsscript.json**, ejecutar `setup()` y actualizar la implementación existente; después el jefe pulsa **Activar avisos** y cada dispositivo concede permiso. El código completo de `Code.gs` ya contiene la firma necesaria; no requiere copiar módulos adicionales ni abrir otra cuenta. Ver [instalación y avisos](INSTALACION.md#avisos-fuera-de-la-página-y-aplicación-instalada).
 

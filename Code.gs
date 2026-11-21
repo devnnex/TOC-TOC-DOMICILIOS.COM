@@ -1,5 +1,5 @@
 /**
- * TOC TOC · Backend Google Sheets / Apps Script V8.
+ * TocToc · Backend Google Sheets / Apps Script V8.
  * 1. Pega este archivo y ejecuta setup(). 2. Despliega como Web App.
  * 3. Usa el código del registro para crear el primer jefe desde admin.html.
  * No publiques el Sheet. No añadas secretos a config.js.
@@ -7,7 +7,7 @@
 const DB_ID = "1RY7f8Xuel5-tK9e_PQhXgscinU8AQN45pge5p-f16u8";
 const TZ = "America/Bogota";
 const SESSION_HOURS = 8;
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.3.1";
 const SCHEMA = {
   Requests: [
     "id",
@@ -183,7 +183,7 @@ function doGet() {
   return json_({
     ok: true,
     data: {
-      application: "TOC TOC",
+      application: "TocToc",
       version: APP_VERSION,
       transport: "POST text/plain",
     },
@@ -1928,7 +1928,7 @@ function pushInbox_(d) {
     if (e.kind === "test")
       return {
         id: e.id,
-        title: "TOC TOC está listo",
+        title: "TocToc está listo",
         body: "Este dispositivo ya puede recibir tus avisos.",
         tag: "toc-test",
         path: s.scope === "admin" ? "admin.html#settings" : "index.html",
@@ -1942,11 +1942,11 @@ function pushInbox_(d) {
           : "Tu centro de servicios está al día",
         body: count
           ? count === 1
-            ? "Hay una solicitud esperando. Abre TOC TOC para revisarla."
+            ? "Hay una solicitud esperando. Abre TocToc para revisarla."
             : "Hay " +
               count +
-              " solicitudes esperando. Abre TOC TOC para revisarlas."
-          : "Abre TOC TOC para consultar las últimas novedades.",
+              " solicitudes esperando. Abre TocToc para revisarlas."
+          : "Abre TocToc para consultar las últimas novedades.",
         tag: "toc-services-" + s.cityId,
         path: "admin.html#inbox",
       };
@@ -1959,7 +1959,7 @@ function pushInbox_(d) {
       ],
       accepted: [
         "Tu domiciliario está en camino",
-        "Tu servicio fue aceptado. Abre TOC TOC para ver sus datos.",
+        "Tu servicio fue aceptado. Abre TocToc para ver sus datos.",
       ],
       completed: [
         "Un pendiente menos",
@@ -1967,11 +1967,11 @@ function pushInbox_(d) {
       ],
       cancelled: [
         "Tu solicitud fue cancelada",
-        "Abre TOC TOC para consultar el estado de tu servicio.",
+        "Abre TocToc para consultar el estado de tu servicio.",
       ],
     }[order.status] || [
       "Hay novedades de tu servicio",
-      "Abre TOC TOC para consultarlas.",
+      "Abre TocToc para consultarlas.",
     ];
     return {
       id: e.id + ":" + order.status,

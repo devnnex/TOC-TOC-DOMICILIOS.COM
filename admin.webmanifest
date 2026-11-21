@@ -1,7 +1,7 @@
 {
   "id": "./team",
-  "name": "TOC TOC Equipo",
-  "short_name": "TOC Equipo",
+  "name": "TocToc Equipo",
+  "short_name": "TocToc Equipo",
   "description": "Tus servicios y tu equipo, en un solo lugar.",
   "lang": "es-CO",
   "start_url": "./admin.html?source=app",

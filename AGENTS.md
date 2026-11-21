@@ -1,4 +1,7 @@
-# Acuerdos del proyecto TOC TOC
+# Acuerdos del proyecto TocToc
+
+- Marca visible exacta: TocToc, con ambas T mayúsculas, también en logos HTML, títulos, voz y notificaciones. No cambiar URLs del repositorio, IDs ni claves de almacenamiento existentes al corregir el nombre.
+- Preparar automáticamente avisos y audio tras interacciones de usuario admitidas; nunca tratar movimiento del mouse, scroll, eventos sintéticos ni mera entrada como consentimiento. La solicitud nativa exige aceptación; respetar rechazo/cierre y no insistir automáticamente. Pedir GPS cuando se necesita para el servicio. Probar también el despertar del worker detenido sin ventanas de la app.
 
 - Aplicación con index.html para clientes, admin.html para el equipo y Code.gs como backend de Google Sheets. Mantener el Sheet configurado y la URL /exec existentes salvo instrucción expresa.
 - Primer acceso obligatorio: si Users no tiene cuentas, admin.html debe mostrar automáticamente la creación del jefe. Después debe mostrar el ingreso normal. El estado público nunca revela correos, usuarios, contraseñas ni el código privado.

@@ -6,30 +6,30 @@
     <meta name="theme-color" content="#f4f5f7" />
     <meta
       name="description"
-      content="Tu domiciliario en Barrancabermeja, a un toque. Activa tu ubicación, confirma tu punto en Google Maps y solicita con TOC TOC."
+      content="Tu domiciliario en Barrancabermeja, a un toque. Activa tu ubicación, confirma tu punto en Google Maps y solicita con TocToc."
     />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https://script.google.com https://*.googleusercontent.com https://*.googleapis.com https://*.gstatic.com https://*.google.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com; frame-src https://www.google.com https://maps.google.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'"
     />
-    <title>TOC TOC · Activa tu domicilio</title>
+    <title>TocToc · Activa tu domicilio</title>
     <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="assets/icons/app-192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="TOC TOC" />
-    <link rel="stylesheet" href="assets/pwa.css?v=1.3.0" />
-    <link rel="stylesheet" href="assets/client.css?v=1.3.0" />
+    <meta name="apple-mobile-web-app-title" content="TocToc" />
+    <link rel="stylesheet" href="assets/pwa.css?v=1.3.1" />
+    <link rel="stylesheet" href="assets/client.css?v=1.3.1" />
     <script src="config.js" defer></script>
-    <script type="module" src="assets/client.js?v=1.3.0"></script>
+    <script type="module" src="assets/client.js?v=1.3.1"></script>
   </head>
   <body class="launchpad">
     <div id="environment-banner" class="environment-banner" hidden></div>
     <header class="launch-header">
-      <a class="brand" href="index.html" aria-label="TOC TOC inicio"
+      <a class="brand" href="index.html" aria-label="TocToc inicio"
         ><img src="assets/mark.svg" width="44" height="44" alt="" /><span
-          >toc<span class="brand-accent">toc</span
+          >Toc<span class="brand-accent">Toc</span
           ><small>DOMICILIOS</small></span
         ></a
       >
@@ -39,7 +39,7 @@
           data-install-app
           type="button"
           hidden
-          aria-label="Instalar TOC TOC"
+          aria-label="Instalar TocToc"
         >
           <svg class="icon"><use href="assets/icons.svg#grid" /></svg
           ><span>Instalar app</span></button
@@ -89,10 +89,13 @@
       <p id="launch-hint" class="launch-hint">
         Un toque. Activa tu ubicación. Nosotros nos movemos.
       </p>
+      <p class="app-message permission-intro" data-permission-intro>
+        Permite los avisos para saber cuándo vamos por ti.
+      </p>
     </main>
     <footer class="launch-footer">
       <span>Un pendiente menos.</span
-      ><span>TOC TOC · <span id="year">2026</span></span>
+      ><span>TocToc · <span id="year">2026</span></span>
     </footer>
     <p class="offline-notice" data-offline-status hidden></p>
     <button class="app-update" data-update-app hidden>
@@ -105,7 +108,7 @@
       aria-labelledby="request-title"
     >
       <div class="sheet-header">
-        <span class="brand-word">toc<span>toc</span></span
+        <span class="brand-word">Toc<span>Toc</span></span
         ><button
           class="icon-button"
           id="close-request"
@@ -294,7 +297,7 @@
     >
       <div class="tracking-shell">
         <div class="sheet-header">
-          <span class="brand-word">toc<span>toc</span></span
+          <span class="brand-word">Toc<span>Toc</span></span
           ><button
             class="icon-button"
             id="minimize-tracking"
@@ -322,7 +325,7 @@
         </div>
         <h2 id="tracking-title">Activando tu próximo movimiento.</h2>
         <p id="tracking-description">
-          Conectamos tu punto con el equipo de TOC TOC.
+          Conectamos tu punto con el equipo de TocToc.
         </p>
         <div class="tracking-steps" id="tracking-steps">
           <span class="active">Solicitud enviada</span><span>En camino</span
@@ -375,7 +378,7 @@
       </button>
       <h2>Tu información, con propósito.</h2>
       <p>
-        TOC TOC utiliza tu nombre, celular, dirección, instrucciones y ubicación
+        TocToc utiliza tu nombre, celular, dirección, instrucciones y ubicación
         autorizada para atender el servicio. El equipo autorizado consulta estos
         datos en su panel privado.
       </p>

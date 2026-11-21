@@ -21,9 +21,9 @@ import {
   inCity,
   time,
   distance,
-} from "./core.js?v=1.3.0";
-import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.0";
-import { initPwa, syncPush } from "./pwa.js?v=1.3.0";
+} from "./core.js?v=1.3.1";
+import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.1";
+import { initPwa, syncPush } from "./pwa.js?v=1.3.1";
 banner();
 wireDialogs();
 const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",
@@ -349,7 +349,7 @@ $("#minimize-tracking").addEventListener("click", () => {
 });
 $("#tracking-sound").addEventListener("click", async () => {
   if (await sound.enable()) {
-    sound.play("Las notificaciones de TOC TOC están activadas.");
+    sound.play("Las notificaciones de TocToc están activadas.");
     $("#tracking-sound").textContent = "Sonido y voz activados";
   } else notify("Revisa los permisos de sonido de tu navegador.");
 });
@@ -513,7 +513,7 @@ function renderTracking(o) {
       ],
       completed: [
         "Un pendiente menos. Listo.",
-        "Tu servicio fue marcado como completado. Gracias por moverte con TOC TOC.",
+        "Tu servicio fue marcado como completado. Gracias por moverte con TocToc.",
       ],
       cancelled: [
         "Solicitud cancelada",
@@ -563,14 +563,14 @@ function renderTracking(o) {
   }
   if (o.status === "accepted" && active.notifiedStatus !== "accepted") {
     sound.play(
-      "TOC TOC. Tu domiciliario está en camino. Tu servicio fue aceptado.",
+      "TocToc. Tu domiciliario está en camino. Tu servicio fue aceptado.",
     );
     if (sound.enabled) active.notifiedStatus = "accepted";
     notify("¡Tu domiciliario está en camino!");
   }
   if (o.status === "completed" && active.lastStatus !== "completed")
     sound.play(
-      "Tu servicio de TOC TOC fue completado. Gracias por confiar en nosotros.",
+      "Tu servicio de TocToc fue completado. Gracias por confiar en nosotros.",
     );
   active.lastStatus = o.status;
   launchState(o.status);

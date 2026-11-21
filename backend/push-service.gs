@@ -254,7 +254,7 @@ function pushInbox_(d) {
     if (e.kind === "test")
       return {
         id: e.id,
-        title: "TOC TOC está listo",
+        title: "TocToc está listo",
         body: "Este dispositivo ya puede recibir tus avisos.",
         tag: "toc-test",
         path: s.scope === "admin" ? "admin.html#settings" : "index.html",
@@ -268,11 +268,11 @@ function pushInbox_(d) {
           : "Tu centro de servicios está al día",
         body: count
           ? count === 1
-            ? "Hay una solicitud esperando. Abre TOC TOC para revisarla."
+            ? "Hay una solicitud esperando. Abre TocToc para revisarla."
             : "Hay " +
               count +
-              " solicitudes esperando. Abre TOC TOC para revisarlas."
-          : "Abre TOC TOC para consultar las últimas novedades.",
+              " solicitudes esperando. Abre TocToc para revisarlas."
+          : "Abre TocToc para consultar las últimas novedades.",
         tag: "toc-services-" + s.cityId,
         path: "admin.html#inbox",
       };
@@ -285,7 +285,7 @@ function pushInbox_(d) {
       ],
       accepted: [
         "Tu domiciliario está en camino",
-        "Tu servicio fue aceptado. Abre TOC TOC para ver sus datos.",
+        "Tu servicio fue aceptado. Abre TocToc para ver sus datos.",
       ],
       completed: [
         "Un pendiente menos",
@@ -293,11 +293,11 @@ function pushInbox_(d) {
       ],
       cancelled: [
         "Tu solicitud fue cancelada",
-        "Abre TOC TOC para consultar el estado de tu servicio.",
+        "Abre TocToc para consultar el estado de tu servicio.",
       ],
     }[order.status] || [
       "Hay novedades de tu servicio",
-      "Abre TOC TOC para consultarlas.",
+      "Abre TocToc para consultarlas.",
     ];
     return {
       id: e.id + ":" + order.status,

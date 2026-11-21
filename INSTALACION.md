@@ -1,4 +1,4 @@
-# Instalación de TOC TOC
+# Instalación de TocToc
 
 ## 1. Preparar Google Sheets
 
@@ -96,6 +96,8 @@ No se implementan pagos, tarifas automáticas, seguimiento GPS del domiciliario 
 ## Mantenimiento y solución de problemas
 
 ### Avisos fuera de la página y aplicación instalada
+
+**Versión 1.3.1:** el nombre visible es TocToc. Con el servicio preparado, se pide el permiso automáticamente tras una interacción válida, una sola vez por sesión de pestaña. Aceptar sigue siendo una decisión de la persona en el navegador. Mover el mouse o deslizar no puede conceder permisos. Si ya se concedieron, la app recupera los avisos sin otro diálogo. Los botones de activación permiten reintentarlo de forma voluntaria. GPS y notificaciones se solicitan por separado para evitar diálogos simultáneos.
 
 **Actualizar una instalación existente a 1.3:** copia **todo** [Code.gs](Code.gs), incluido su bloque final de firma, y [appsscript.json](appsscript.json). Ejecuta `setup()` de nuevo y autoriza el permiso adicional de conexiones externas. Conserva las hojas y sus datos. En **Implementar → Gestionar implementaciones → Editar → Nueva versión**, actualiza la aplicación web existente y conserva su misma URL `/exec`. Un push a GitHub actualiza la web; no actualiza el proyecto de Google.
 

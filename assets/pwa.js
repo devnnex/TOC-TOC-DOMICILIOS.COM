@@ -1,5 +1,13 @@
-import { api, config, demo, notify } from "./core.js?v=1.3.0";
-import "./pwa-store.js?v=1.3.0";
+import {
+  api,
+  config,
+  demo,
+  notify,
+  sound,
+  storageGet,
+  storageSet,
+} from "./core.js?v=1.3.1";
+import "./pwa-store.js?v=1.3.1";
 const ROOT = new URL("../", import.meta.url).href,
   store = globalThis.TocPwaStore;
 let registration,
@@ -8,7 +16,15 @@ let registration,
   targetProvider = () => null,
   sessionProvider = () => "",
   boundTarget = "",
-  binding;
+  binding,
+  enabling,
+  autoInfo,
+  preparing;
+let autoAttempted = storageGet(
+  "toc-notification-prompted",
+  false,
+  sessionStorage,
+);
 const installed = () =>
   matchMedia("(display-mode: standalone)").matches ||
   navigator.standalone === true;
@@ -20,8 +36,15 @@ const supported = () =>
   "serviceWorker" in navigator &&
   "PushManager" in window &&
   "Notification" in window;
-const emit = (detail) =>
+const emit = (detail) => {
+  if (detail.enabled)
+    document
+      .querySelectorAll("[data-permission-intro]")
+      .forEach(
+        (n) => (n.textContent = "Avisos activados en este dispositivo."),
+      );
   window.dispatchEvent(new CustomEvent("toc:push-state", { detail }));
+};
 function status(message) {
   document
     .querySelectorAll("[data-push-status]")
@@ -70,6 +93,7 @@ async function bind() {
     if (
       previous &&
       previous.targetKey === key &&
+      previous.endpoint === sub.endpoint &&
       new Date(previous.expiresAt).getTime() > Date.now() + 3600000
     ) {
       boundTarget = key;
@@ -84,6 +108,7 @@ async function bind() {
     const dispatch = grant.pushDispatch;
     delete grant.pushDispatch;
     grant.targetKey = key;
+    grant.endpoint = sub.endpoint;
     await store.put(ROOT, "grant:" + role, grant);
     if (dispatch) api("dispatchPush", dispatch).catch(() => {});
     boundTarget = key;
@@ -93,7 +118,14 @@ async function bind() {
   })().finally(() => (binding = null));
   return binding;
 }
-export async function enablePush() {
+export function enablePush(options = {}) {
+  if (enabling) return enabling;
+  enabling = activatePush(options.automatic === true).finally(
+    () => (enabling = null),
+  );
+  return enabling;
+}
+async function activatePush(automatic = false) {
   if (demo) {
     status("Los avisos fuera de la página se activan en la aplicación real.");
     notify(
@@ -103,10 +135,10 @@ export async function enablePush() {
   }
   if (ios() && !installed()) {
     status(
-      "Añade TOC TOC a tu pantalla de inicio y activa los avisos desde allí.",
+      "Añade TocToc a tu pantalla de inicio y activa los avisos desde allí.",
     );
     notify(
-      "En iPhone: Compartir → Añadir a pantalla de inicio. Después abre TOC TOC y activa los avisos.",
+      "En iPhone: Compartir → Añadir a pantalla de inicio. Después abre TocToc y activa los avisos.",
     );
     return false;
   }
@@ -116,12 +148,16 @@ export async function enablePush() {
     );
     return false;
   }
-  // Ask while handling the user's click, before awaiting network operations.
-  const permissionPromise =
-    Notification.permission === "default"
-      ? Notification.requestPermission()
-      : Promise.resolve(Notification.permission);
+  // Starting the prompt never means consent. Only the browser's grant counts.
+  if (Notification.permission === "default") {
+    autoAttempted = true;
+    storageSet("toc-notification-prompted", true, sessionStorage);
+  }
   try {
+    const permissionPromise =
+      Notification.permission === "default"
+        ? Notification.requestPermission()
+        : Promise.resolve(Notification.permission);
     if ((await permissionPromise) !== "granted") {
       status(
         "Los avisos están bloqueados. Puedes habilitarlos en los permisos del navegador.",
@@ -177,20 +213,70 @@ export async function enablePush() {
         ? "El equipo debe completar la activación de los avisos."
         : error.message,
     );
-    notify(
-      ["UNAUTHORIZED", "UNKNOWN_ACTION"].includes(error.code)
-        ? "Los avisos necesitan completar su activación."
-        : error.message,
-    );
+    if (!automatic)
+      notify(
+        ["UNAUTHORIZED", "UNKNOWN_ACTION"].includes(error.code)
+          ? "Los avisos necesitan completar su activación."
+          : error.message,
+      );
     return false;
   }
 }
 export async function syncPush() {
   try {
+    await prepareAutomaticPush();
     return await bind();
   } catch {
     return false;
   }
+}
+function eligibleForPush() {
+  if (demo || !supported() || (ios() && !installed()) || !autoInfo?.available)
+    return false;
+  const target = targetProvider();
+  if (role === "admin" && (!target || target.mustChangePassword)) return false;
+  return autoInfo.enabled || (role === "admin" && target.role === "owner");
+}
+async function prepareAutomaticPush() {
+  if (demo || !supported() || (ios() && !installed()) || !registration) return;
+  if (preparing) return preparing;
+  preparing = (async () => {
+    // Fetch availability before a gesture; do not consume activation on a fetch.
+    if (!autoInfo?.enabled) autoInfo = await api("pushInfo");
+    if (eligibleForPush() && Notification.permission === "granted")
+      await enablePush({ automatic: true });
+    document.querySelectorAll("[data-permission-intro]").forEach((n) => {
+      if (eligibleForPush() && Notification.permission === "default")
+        n.textContent =
+          "Acepta los avisos del navegador para recibir novedades aunque salgas.";
+    });
+  })()
+    .catch(() => {})
+    .finally(() => (preparing = null));
+  return preparing;
+}
+function activateOnInteraction(event) {
+  if (!event.isTrusted || navigator.userActivation?.isActive === false) return;
+  if (
+    event.type === "keydown" &&
+    (event.repeat || !["Enter", " "].includes(event.key))
+  )
+    return;
+  if (!sound.enabled) sound.enable();
+  if (
+    !eligibleForPush() ||
+    Notification.permission !== "default" ||
+    autoAttempted
+  )
+    return;
+  // The pickup action already requests GPS. Do not stack two native prompts.
+  if (
+    event.target?.closest?.(
+      "#request-launch,#locate-button,[data-install-app],[data-enable-push],[data-test-push],#sound-button,a",
+    )
+  )
+    return;
+  enablePush({ automatic: true });
 }
 export async function forgetPush() {
   const previous = await store.get(ROOT, "grant:" + role).catch(() => null);
@@ -219,6 +305,14 @@ export async function initPwa(options = {}) {
   role = options.role || "client";
   targetProvider = options.target || (() => null);
   sessionProvider = options.session || (() => "");
+  if (!demo) {
+    document.addEventListener("click", activateOnInteraction, {
+      capture: true,
+    });
+    document.addEventListener("keydown", activateOnInteraction, {
+      capture: true,
+    });
+  }
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     installPrompt = event;

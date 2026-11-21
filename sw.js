@@ -1,6 +1,6 @@
-/* TOC TOC 1.3.0 — app shell and real, payload-less Web Push. */
-importScripts("assets/pwa-store.js?v=1.3.0");
-const APP_VERSION = "1.3.0",
+/* TocToc 1.3.1 — app shell and real, payload-less Web Push. */
+importScripts("assets/pwa-store.js?v=1.3.1");
+const APP_VERSION = "1.3.1",
   SCOPE = self.registration.scope,
   CACHE_PREFIX = "toc:" + SCOPE + ":",
   CACHE = CACHE_PREFIX + APP_VERSION;
@@ -11,17 +11,17 @@ const ASSETS = [
   "config.js",
   "manifest.webmanifest",
   "admin.webmanifest",
-  "assets/client.css?v=1.3.0",
-  "assets/app.css?v=1.3.0",
-  "assets/pwa.css?v=1.3.0",
-  "assets/client.js?v=1.3.0",
-  "assets/admin.js?v=1.3.0",
-  "assets/core.js?v=1.3.0",
-  "assets/maps.js?v=1.3.0",
-  "assets/orders.js?v=1.3.0",
-  "assets/demo.js?v=1.3.0",
-  "assets/pwa.js?v=1.3.0",
-  "assets/pwa-store.js?v=1.3.0",
+  "assets/client.css?v=1.3.1",
+  "assets/app.css?v=1.3.1",
+  "assets/pwa.css?v=1.3.1",
+  "assets/client.js?v=1.3.1",
+  "assets/admin.js?v=1.3.1",
+  "assets/core.js?v=1.3.1",
+  "assets/maps.js?v=1.3.1",
+  "assets/orders.js?v=1.3.1",
+  "assets/demo.js?v=1.3.1",
+  "assets/pwa.js?v=1.3.1",
+  "assets/pwa-store.js?v=1.3.1",
   "assets/icons.svg",
   "assets/mark.svg",
   "assets/courier-cutout.webp",
@@ -190,7 +190,7 @@ self.addEventListener("push", (event) =>
       if (!notifications.length)
         notifications = [
           {
-            title: "TOC TOC",
+            title: "TocToc",
             body: "Hay novedades. Abre la aplicación para consultar tus servicios.",
             tag: "toc-update",
             path: fallbackPath,

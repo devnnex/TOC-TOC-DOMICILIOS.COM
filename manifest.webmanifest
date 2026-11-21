@@ -1,7 +1,7 @@
 {
   "id": "./client",
-  "name": "TOC TOC Domicilios",
-  "short_name": "TOC TOC",
+  "name": "TocToc Domicilios",
+  "short_name": "TocToc",
   "description": "Tu domiciliario, a un toque.",
   "lang": "es-CO",
   "start_url": "./index.html?source=app",

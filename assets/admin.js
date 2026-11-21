@@ -21,10 +21,10 @@ import {
   sound,
   poll,
   inCity,
-} from "./core.js?v=1.3.0";
-import { mapPreview, autocomplete } from "./maps.js?v=1.3.0";
-import { normalizeOrder } from "./orders.js?v=1.3.0";
-import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.0";
+} from "./core.js?v=1.3.1";
+import { mapPreview, autocomplete } from "./maps.js?v=1.3.1";
+import { normalizeOrder } from "./orders.js?v=1.3.1";
+import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.1";
 banner();
 wireDialogs();
 const sessionKey = demo ? "toc-demo-session" : "toc-session";
@@ -53,6 +53,7 @@ initPwa({
           id: session.user.id,
           userId: session.user.id,
           role: session.user.role,
+          mustChangePassword: session.user.mustChangePassword,
         }
       : null,
   session: () => session?.token || "",
@@ -317,15 +318,15 @@ async function sync() {
     if (!firstLoad && newOnes.length) {
       sound.play(
         newOnes.length === 1
-          ? "TOC TOC. Nueva solicitud de domicilio. Revisa el centro de servicios."
-          : `TOC TOC. Tienes ${newOnes.length} nuevas solicitudes de domicilio.`,
+          ? "TocToc. Nueva solicitud de domicilio. Revisa el centro de servicios."
+          : `TocToc. Tienes ${newOnes.length} nuevas solicitudes de domicilio.`,
       );
       notify(
         `${newOnes.length} nueva${newOnes.length === 1 ? " solicitud" : "s solicitudes"} por aceptar.`,
       );
     }
     if (firstLoad && newOnes.length && sound.enabled) {
-      sound.play(`TOC TOC. Tienes ${newOnes.length} solicitudes por aceptar.`);
+      sound.play(`TocToc. Tienes ${newOnes.length} solicitudes por aceptar.`);
     }
     orders = incoming;
     todayStats = result.today;
@@ -396,7 +397,7 @@ function renderInbox() {
     accepted = orders.filter((o) => o.status === "accepted").length;
   $("#pending-count").textContent = $("#tab-pending").textContent = pending;
   $("#tab-accepted").textContent = accepted;
-  document.title = `${pending ? `(${pending}) ` : ""}Equipo · TOC TOC`;
+  document.title = `${pending ? `(${pending}) ` : ""}Equipo · TocToc`;
   $("#inbox-kpis").replaceChildren(
     statsNode(
       "Por aceptar",
@@ -684,7 +685,7 @@ async function enableAlerts(test = true, outside = true) {
   $("#sound-button").classList.toggle("enabled", on);
   if (on && test)
     sound.play(
-      "TOC TOC. Sonido y voz activados. Estamos listos para recibir nuevos servicios.",
+      "TocToc. Sonido y voz activados. Estamos listos para recibir nuevos servicios.",
     );
   if (!on) notify("Revisa los permisos de audio de tu navegador.");
   if (test && outside) {
