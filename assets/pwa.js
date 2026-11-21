@@ -6,8 +6,8 @@ import {
   sound,
   storageGet,
   storageSet,
-} from "./core.js?v=1.3.2";
-import "./pwa-store.js?v=1.3.2";
+} from "./core.js?v=1.3.3";
+import "./pwa-store.js?v=1.3.3";
 const ROOT = new URL("../", import.meta.url).href,
   store = globalThis.TocPwaStore;
 let registration,

@@ -1,5 +1,7 @@
 # Acuerdos del proyecto TocToc
 
+- El título del seguimiento completado debe ser «Pedido exitosamente realizado.». Al asignar domiciliario, el botón Ben 10 cambia de forma y símbolo; el seguimiento también muestra la transformación. Conservar la preferencia de movimiento reducido.
+
 - Marca visible exacta: TocToc, con ambas T mayúsculas, también en logos HTML, títulos, voz y notificaciones. No cambiar URLs del repositorio, IDs ni claves de almacenamiento existentes al corregir el nombre.
 - Preparar automáticamente avisos y audio tras interacciones de usuario admitidas; nunca tratar movimiento del mouse, scroll, eventos sintéticos ni mera entrada como consentimiento. La solicitud nativa exige aceptación; respetar rechazo/cierre y no insistir automáticamente. Pedir GPS cuando se necesita para el servicio. Probar también el despertar del worker detenido sin ventanas de la app.
 

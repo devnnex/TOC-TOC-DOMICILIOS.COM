@@ -342,6 +342,85 @@ h2 {
 .power-trigger[data-state="accepted"] .power-core svg {
   fill: #d5ffad;
 }
+.power-disc,
+.power-core,
+.power-ring,
+.power-notch {
+  transition:
+    transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-radius 0.55s,
+    opacity 0.3s,
+    background 0.3s;
+}
+.power-core .power-route,
+.power-core .power-done {
+  display: none;
+}
+.power-trigger[data-state="accepted"] .power-disc {
+  border-radius: 30px;
+  transform: rotate(-8deg);
+  background: linear-gradient(145deg, #346944, #102b22);
+}
+.power-trigger[data-state="accepted"] .power-ring {
+  border-radius: 23px;
+}
+.power-trigger[data-state="accepted"] .ring-outer {
+  animation: assigned-frame 2.6s ease-in-out infinite;
+  border-color: #a5ed64;
+}
+.power-trigger[data-state="accepted"] .power-core {
+  border-radius: 23px;
+  transform: rotate(8deg);
+}
+.power-trigger[data-state="accepted"] .power-symbol,
+.power-trigger[data-state="completed"] .power-symbol {
+  display: none;
+}
+.power-trigger[data-state="accepted"] .power-route {
+  display: block;
+  animation: assigned-symbol 2.6s ease-in-out infinite;
+}
+.power-trigger[data-state="accepted"] .power-notch {
+  opacity: 0;
+  transform: scale(0.5);
+}
+.power-trigger[data-state="completed"] .power-disc {
+  border-radius: 38px;
+  background: linear-gradient(145deg, #315847, #142b22);
+}
+.power-trigger[data-state="completed"] .power-ring {
+  border-radius: 30px;
+  animation: none;
+  border-color: #b5df9e;
+}
+.power-trigger[data-state="completed"] .power-done {
+  display: block;
+  fill: none;
+  stroke: var(--lime);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@keyframes assigned-frame {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(0.94);
+    opacity: 1;
+  }
+}
+@keyframes assigned-symbol {
+  0%,
+  100% {
+    transform: translateX(-2px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
 .launch-hint {
   margin-top: 10px;
   text-align: center;
@@ -1068,7 +1147,6 @@ summary::-webkit-details-marker {
   height: 60px;
   stroke-width: 2.3;
 }
-.state-accepted .journey-emblem,
 .state-completed .journey-emblem {
   display: none;
 }
@@ -1077,7 +1155,49 @@ summary::-webkit-details-marker {
   display: block;
 }
 .state-accepted .journey-bike {
-  animation: bike-go 2.5s ease-in-out infinite;
+  width: 80px;
+  height: 64px;
+  left: calc(50% - 40px);
+  top: 57px;
+  stroke: var(--lime);
+  animation: assigned-symbol 2.6s ease-in-out infinite;
+}
+.journey-emblem {
+  transition:
+    transform 0.55s,
+    border-radius 0.55s,
+    background 0.3s;
+}
+.state-accepted .journey-emblem {
+  border-radius: 26px;
+  transform: rotate(45deg);
+  background: linear-gradient(145deg, #346944, #102b22);
+  animation: orb-glow 2.6s ease-in-out infinite;
+}
+.state-accepted .journey-emblem svg {
+  opacity: 0;
+}
+.state-accepted .radar-ring {
+  border-radius: 28px;
+  animation: assigned-radar 2.6s ease-out infinite;
+}
+.state-accepted .ring-b {
+  animation-delay: 1.3s;
+}
+.state-accepted .journey-road {
+  top: 168px;
+  width: 160px;
+  left: calc(50% - 80px);
+}
+@keyframes assigned-radar {
+  0% {
+    transform: rotate(45deg) scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: rotate(45deg) scale(1.3);
+    opacity: 0;
+  }
 }
 .state-completed .journey-check {
   display: grid;

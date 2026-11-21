@@ -89,14 +89,14 @@ try {
   );
   await admin.evaluate(async () => {
     window.blockAudio = true;
-    const { sound } = await import("./assets/core.js?v=1.3.2");
+    const { sound } = await import("./assets/core.js?v=1.3.3");
     await sound.context.suspend();
   });
   const second = order();
   await refresh(admin);
   await admin.locator("#requests-list .request-item").nth(1).waitFor();
   await admin.waitForFunction(async () => {
-    const { sound } = await import("./assets/core.js?v=1.3.2");
+    const { sound } = await import("./assets/core.js?v=1.3.3");
     return sound.pending > 0;
   });
   assert.equal(
@@ -136,7 +136,7 @@ try {
   await heard(client, "client:" + first.id + ":accepted");
   await client.evaluate(async () => {
     window.blockAudio = true;
-    const { sound } = await import("./assets/core.js?v=1.3.2");
+    const { sound } = await import("./assets/core.js?v=1.3.3");
     await sound.context.suspend();
   });
   ok(
@@ -149,7 +149,7 @@ try {
   await refresh(client);
   await client
     .locator("#tracking-title")
-    .filter({ hasText: "Un pendiente menos" })
+    .filter({ hasText: "Pedido exitosamente realizado." })
     .waitFor();
   assert.equal(
     await client.evaluate(
@@ -161,7 +161,7 @@ try {
   await client.reload();
   await client
     .locator("#tracking-title")
-    .filter({ hasText: "Un pendiente menos" })
+    .filter({ hasText: "Pedido exitosamente realizado." })
     .waitFor();
   await client.locator("#tracking-title").click();
   await heard(client, "client:" + first.id + ":completed");

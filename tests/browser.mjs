@@ -109,6 +109,22 @@ import { stubMapFrames } from "./support/map-frames.mjs";
     path: "test-results/client-accepted.png",
     fullPage: true,
   });
+  await client.waitForFunction(() => {
+    const trigger = document.querySelector("#request-launch");
+    return (
+      trigger.dataset.state === "accepted" &&
+      getComputedStyle(trigger.querySelector(".power-route")).display ===
+        "block" &&
+      getComputedStyle(
+        document.querySelector(".state-accepted .journey-emblem"),
+      ).display === "grid"
+    );
+  });
+  await client.locator("#minimize-tracking").click();
+  await client.screenshot({
+    path: "test-results/client-assigned-button.png",
+    fullPage: true,
+  });
   await client.reload();
   await client
     .locator("#tracking-title")
@@ -129,7 +145,7 @@ import { stubMapFrames } from "./support/map-frames.mjs";
   await client.bringToFront();
   await client
     .locator("#tracking-title")
-    .filter({ hasText: "Un pendiente menos" })
+    .filter({ hasText: "Pedido exitosamente realizado." })
     .waitFor({ timeout: 15000 });
   await admin.bringToFront();
   await admin.locator("[data-view=analytics]").click();

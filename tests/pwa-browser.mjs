@@ -230,7 +230,7 @@ try {
   );
   await another.bringToFront();
   await another.evaluate(async () => {
-    const { sound } = await import("./assets/core.js?v=1.3.2");
+    const { sound } = await import("./assets/core.js?v=1.3.3");
     await sound.enable();
     await sound.context.suspend();
     window.resumeAudio = sound.context.resume.bind(sound.context);
@@ -292,7 +292,7 @@ try {
   await previous.goto(base + "index.html#service=" + p.id);
   await previous
     .locator("#tracking-title")
-    .filter({ hasText: "Un pendiente menos" })
+    .filter({ hasText: "Pedido exitosamente realizado." })
     .waitFor();
   await previous.close();
   report.push(

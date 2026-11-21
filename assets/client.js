@@ -21,9 +21,9 @@ import {
   inCity,
   time,
   distance,
-} from "./core.js?v=1.3.2";
-import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.2";
-import { initPwa, syncPush, restoreDeviceTracking } from "./pwa.js?v=1.3.2";
+} from "./core.js?v=1.3.3";
+import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.3";
+import { initPwa, syncPush, restoreDeviceTracking } from "./pwa.js?v=1.3.3";
 banner();
 wireDialogs();
 const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",
@@ -71,7 +71,11 @@ window.addEventListener("toc:audio-state", () => {
 function launchState(state) {
   $("#request-launch").dataset.state = state;
   $("#launch-label").textContent = active
-    ? "Ver mi servicio"
+    ? state === "accepted"
+      ? "Ver domiciliario"
+      : state === "completed"
+        ? "Ver pedido realizado"
+        : "Ver mi servicio"
     : "Solicitar domicilio";
 }
 function locateBusy(state) {
@@ -521,7 +525,7 @@ function renderTracking(o) {
         "El equipo aceptó tu servicio. Aquí tienes sus datos para coordinar la recogida.",
       ],
       completed: [
-        "Un pendiente menos. Listo.",
+        "Pedido exitosamente realizado.",
         "Tu servicio fue marcado como completado. Gracias por moverte con TocToc.",
       ],
       cancelled: [
