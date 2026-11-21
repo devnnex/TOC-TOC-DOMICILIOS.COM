@@ -89,6 +89,62 @@ function payload(overrides = {}) {
     ...overrides,
   };
 }
+test("el panel atiende primero pendientes por orden de llegada y conserva empates", () => {
+  const e = environment(),
+    a = payload(),
+    b = payload(),
+    c = payload();
+  [a, b, c].forEach((p) => assert.ok(e.call("createRequest", p).ok));
+  const orders = e.context.rows_("Requests");
+  orders.forEach((o, i) => {
+    o.createdAt = new Date(Date.now() - (i === 2 ? 1000 : 2000)).toISOString();
+    e.context.write_("Requests", o);
+  });
+  e.cache.clear();
+  assert.deepEqual(
+    Array.from(e.call("dashboard", {}, e.owner).data.orders, (o) => o.id),
+    [a.id, b.id, c.id],
+  );
+  assert.ok(
+    e.call(
+      "transition",
+      {
+        id: a.id,
+        revision: 1,
+        status: "accepted",
+        courier: "Mensajero",
+        courierPhone: "3101234567",
+        fee: 6000,
+      },
+      e.owner,
+    ).ok,
+  );
+  assert.deepEqual(
+    Array.from(e.call("dashboard", {}, e.owner).data.orders, (o) => o.id),
+    [b.id, c.id, a.id],
+  );
+});
+test("una lectura antigua que termina tarde no restaura una caché de estado anterior", () => {
+  const e = environment(),
+    p = payload();
+  e.call("createRequest", p);
+  const prior = e.props.get("orderEpoch");
+  const old = JSON.stringify(e.context.findRequest_(p.id, true));
+  e.call(
+    "transition",
+    {
+      id: p.id,
+      revision: 1,
+      status: "accepted",
+      courier: "Mensajero",
+      courierPhone: "3101234567",
+      fee: 6000,
+    },
+    e.owner,
+  );
+  e.cache.set("order:" + e.context.digest_(p.id) + ":" + prior, old);
+  assert.equal(e.call("trackRequest", p).data.status, "accepted");
+});
 test("setup es idempotente y el bootstrap solo puede usarse una vez", () => {
   const e = environment();
   e.context.setup();

@@ -72,7 +72,7 @@ function preparePush_(actor) {
   owner_(actor);
   return locked_(function () {
     owner_(authenticate_(actor._token));
-    ["PushSubscriptions", "PushEvents"].forEach(function (name) {
+    ["PushSubscriptions", "PushEvents", "PushKeys"].forEach(function (name) {
       const s = book_().getSheetByName(name) || book_().insertSheet(name),
         columns = SCHEMA[name];
       if (s.getLastRow() > 0) {
@@ -142,6 +142,16 @@ function subscribePush_(d, session) {
   if (d.scope === "admin" && truth_(target.mustChangePassword))
     fail_("PASSWORD_CHANGE_REQUIRED", "Cambia primero tu contraseña inicial.");
   const endpoint = pushEndpoint_(d.endpoint).endpoint;
+  if (
+    d.keys &&
+    (!/^[A-Za-z0-9_-]{87}$/.test(String(d.keys.p256dh)) ||
+      !/^[A-Za-z0-9_-]{22}$/.test(String(d.keys.auth)) ||
+      !TocPushCrypto.validReceiver(pushBytes_(d.keys.p256dh)))
+  )
+    fail_(
+      "VALIDATION",
+      "No pudimos vincular de forma segura este dispositivo.",
+    );
   return locked_(function () {
     rateUnlocked_("push-subscribe:" + digest_(endpoint), 20, 600);
     // Revalida el permiso tras tomar el bloqueo; no se aceptan roles del navegador.
@@ -172,6 +182,24 @@ function subscribePush_(d, session) {
     else append_("PushSubscriptions", row);
     cache_().remove("push-subscriptions");
     cache_().remove("push-grant:" + id);
+    if (d.keys) {
+      let ks = book_().getSheetByName("PushKeys");
+      if (!ks) {
+        ks = book_().insertSheet("PushKeys");
+        ks.getRange(1, 1, 1, SCHEMA.PushKeys.length).setValues([
+          SCHEMA.PushKeys,
+        ]);
+      }
+      const keyRow = rows_("PushKeys").find(function (k) {
+        return k.id === id;
+      }) || { id: id };
+      keyRow.p256dh = d.keys.p256dh;
+      keyRow.auth = d.keys.auth;
+      keyRow.updatedAt = now;
+      if (keyRow._row) write_("PushKeys", keyRow);
+      else append_("PushKeys", keyRow);
+      cache_().remove("push-keys");
+    }
     const result = {
       id: id,
       token: grant,
@@ -245,6 +273,66 @@ function unsubscribePush_(d) {
     return { disabled: true };
   });
 }
+/** Only the holder of this device grant can read its delivery status. */
+function pushStatus_(d) {
+  rate_("push-status:" + text_(d.id, 64, true), 20, 60);
+  const s = pushGrant_(d);
+  if (d.endpoint && !equal_(s.endpoint, pushEndpoint_(d.endpoint).endpoint))
+    fail_(
+      "UNAUTHORIZED",
+      "Este dispositivo debe volver a vincular sus avisos.",
+    );
+  const recent = pushRecentEvents_().filter(function (e) {
+    return pushEventMatches_(e, s);
+  });
+  const last = recent.length ? recent[recent.length - 1] : null;
+  const receipt = cached_(
+    "push-receipt:" + s.id,
+    function () {
+      return { shownAt: system_("pushShown:" + s.id) || "" };
+    },
+    10,
+  );
+  return {
+    active: true,
+    encrypted: !!pushKeys_().find(function (k) {
+      return k.id === s.id;
+    }),
+    scope: s.scope,
+    requestId: s.requestId,
+    expiresAt: s.expiresAt,
+    shownAt: receipt.shownAt,
+    last: last
+      ? {
+          state: last.state,
+          attempts: Number(last.attempts) || 0,
+          at: last.createdAt,
+          error: last.lastError || "",
+        }
+      : null,
+  };
+}
+function pushKeys_() {
+  return book_().getSheetByName("PushKeys")
+    ? cached_(
+        "push-keys",
+        function () {
+          return rows_("PushKeys");
+        },
+        60,
+      )
+    : [];
+}
+function pushReceived_(d) {
+  return locked_(function () {
+    const s = pushGrant_(d);
+    rateUnlocked_("push-received:" + s.id, 20, 60);
+    const at = now_();
+    setSystem_("pushShown:" + s.id, at);
+    cache_().remove("push-receipt:" + s.id);
+    return { shownAt: at };
+  });
+}
 function pushRecentEvents_() {
   const s = sheet_("PushEvents"),
     count = Math.min(500, s.getLastRow() - 1);
@@ -277,73 +365,77 @@ function pushInbox_(d) {
     })
     .slice(-5);
   const notifications = events.map(function (e) {
-    if (e.kind === "test")
-      return {
-        id: e.id,
-        title: "TocToc está listo",
-        body: "Este dispositivo ya puede recibir tus avisos.",
-        tag: "toc-test",
-        path: s.scope === "admin" ? "admin.html#settings" : "index.html",
-        scope: s.scope,
-        requestId: s.requestId,
-        alertKey: "test:" + e.id,
-      };
-    if (s.scope === "admin") {
-      const count = pushPendingCount_(s.cityId);
-      return {
-        id: e.id,
-        title: count
-          ? "Tienes servicios por aceptar"
-          : "Tu centro de servicios está al día",
-        body: count
-          ? count === 1
-            ? "Hay una solicitud esperando. Abre TocToc para revisarla."
-            : "Hay " +
-              count +
-              " solicitudes esperando. Abre TocToc para revisarlas."
-          : "Abre TocToc para consultar las últimas novedades.",
-        tag: "toc-services-" + s.cityId,
-        path: "admin.html#inbox",
-        scope: "admin",
-        requestId: e.requestId,
-        alertKey: "admin:" + e.requestId + ":new",
-      };
-    }
-    const order = findRequest_(s.requestId);
-    const copy = {
-      pending: [
-        "Recibimos tu solicitud",
-        "El equipo está revisando tu servicio.",
-      ],
-      accepted: [
-        "Tu domiciliario está en camino",
-        "Tu servicio fue aceptado. Abre TocToc para ver sus datos.",
-      ],
-      completed: [
-        "Un pendiente menos",
-        "Tu servicio fue marcado como completado.",
-      ],
-      cancelled: [
-        "Tu solicitud fue cancelada",
-        "Abre TocToc para consultar el estado de tu servicio.",
-      ],
-    }[order.status] || [
-      "Hay novedades de tu servicio",
-      "Abre TocToc para consultarlas.",
-    ];
-    return {
-      id: e.id + ":" + order.status,
-      title: copy[0],
-      body: copy[1],
-      tag: "toc-request-" + order.id,
-      path: "index.html#service=" + encodeURIComponent(order.id),
-      scope: "client",
-      requestId: order.id,
-      alertKey: "client:" + order.id + ":" + order.status,
-    };
+    return pushNotification_(e, s);
   });
   return { notifications: notifications, checkedAt: Date.now() };
 }
+function pushNotification_(e, s) {
+  if (e.kind === "test")
+    return {
+      id: e.id,
+      title: "TocToc está listo",
+      body: "Este dispositivo ya puede recibir tus avisos.",
+      tag: "toc-test",
+      path: s.scope === "admin" ? "admin.html#settings" : "index.html",
+      scope: s.scope,
+      requestId: s.requestId,
+      alertKey: "test:" + e.id,
+    };
+  if (s.scope === "admin") {
+    const count = pushPendingCount_(s.cityId);
+    return {
+      id: e.id,
+      title: count
+        ? "Tienes servicios por aceptar"
+        : "Tu centro de servicios está al día",
+      body: count
+        ? count === 1
+          ? "Hay una solicitud esperando. Abre TocToc para revisarla."
+          : "Hay " +
+            count +
+            " solicitudes esperando. Abre TocToc para revisarlas."
+        : "Abre TocToc para consultar las últimas novedades.",
+      tag: "toc-services-" + s.cityId,
+      path: "admin.html#inbox",
+      scope: "admin",
+      requestId: e.requestId,
+      alertKey: "admin:" + e.requestId + ":new",
+    };
+  }
+  const order = findRequest_(s.requestId);
+  const copy = {
+    pending: [
+      "Recibimos tu solicitud",
+      "El equipo está revisando tu servicio.",
+    ],
+    accepted: [
+      "Tu domiciliario está en camino",
+      "Tu servicio fue aceptado. Abre TocToc para ver sus datos.",
+    ],
+    completed: [
+      "Pedido exitosamente realizado.",
+      "Tu servicio fue marcado como completado.",
+    ],
+    cancelled: [
+      "Tu solicitud fue cancelada",
+      "Abre TocToc para consultar el estado de tu servicio.",
+    ],
+  }[order.status] || [
+    "Hay novedades de tu servicio",
+    "Abre TocToc para consultarlas.",
+  ];
+  return {
+    id: e.id + ":" + order.status,
+    title: copy[0],
+    body: copy[1],
+    tag: "toc-request-" + order.id,
+    path: "index.html#service=" + encodeURIComponent(order.id),
+    scope: "client",
+    requestId: order.id,
+    alertKey: "client:" + order.id + ":" + order.status,
+  };
+}
+
 function enqueuePush_(order, kind, audience, targetId) {
   if (!pushInfo_().enabled) return null;
   const event = {
@@ -437,6 +529,59 @@ function dispatchPush_(d) {
     fail_("FORBIDDEN", "El permiso para enviar este aviso ya venció.");
   return deliverPushEvent_(d.id);
 }
+function pushRequest_(s, event, keyRows) {
+  const dest = pushEndpoint_(s.endpoint),
+    headers = {
+      Authorization: pushVapidHeader_(dest.origin),
+      TTL: "86400",
+      Urgency: "high",
+      Topic: digest_(event.audience + event.requestId).slice(0, 32),
+    };
+  let payload = "";
+  const keys = keyRows.find(function (k) {
+    return k.id === s.id;
+  });
+  if (keys) {
+    const n = pushNotification_(event, s);
+    n.grantId = s.id;
+    if (s.scope === "client") {
+      const order = findRequest_(s.requestId);
+      n.revision = Number(order.revision) || 0;
+    }
+    const message = pushUtf8_(JSON.stringify({ v: 1, notification: n }));
+    const secret = digest_(random_() + random_() + random_() + random_())
+      .match(/../g)
+      .map(function (h) {
+        return parseInt(h, 16);
+      });
+    const salt = random_()
+      .match(/../g)
+      .map(function (h) {
+        return parseInt(h, 16);
+      });
+    payload = TocPushCrypto.encrypt(
+      message,
+      pushBytes_(keys.p256dh),
+      pushBytes_(keys.auth),
+      secret,
+      salt,
+    ).map(function (b) {
+      return b > 127 ? b - 256 : b;
+    });
+    headers["Content-Encoding"] = "aes128gcm";
+  }
+  return {
+    url: dest.endpoint,
+    method: "post",
+    payload: payload,
+    contentType: "application/octet-stream",
+    headers: headers,
+    muteHttpExceptions: true,
+    followRedirects: false,
+    validateHttpsCertificates: true,
+    timeoutSeconds: 10,
+  };
+}
 function deliverPushEvent_(id) {
   const claimed = locked_(function () {
     const e = rows_("PushEvents").find(function (e) {
@@ -491,27 +636,14 @@ function deliverPushEvent_(id) {
   const expired = [],
     failed = [];
   let sent = 0;
-  // Payload-less Web Push: the worker reads its scoped inbox over HTTPS.
+  const keyRows = pushKeys_();
+  // Encrypted content displays immediately; older devices retain inbox fallback.
   for (let i = 0; i < subscriptions.length; i += 100) {
     const batch = subscriptions.slice(i, i + 100);
     try {
       const responses = UrlFetchApp.fetchAll(
         batch.map(function (s) {
-          const dest = pushEndpoint_(s.endpoint);
-          return {
-            url: dest.endpoint,
-            method: "post",
-            payload: "",
-            headers: {
-              Authorization: pushVapidHeader_(dest.origin),
-              TTL: "86400",
-              Urgency: "high",
-              Topic: digest_(claimed.audience + claimed.requestId).slice(0, 32),
-            },
-            muteHttpExceptions: true,
-            followRedirects: false,
-            validateHttpsCertificates: true,
-          };
+          return pushRequest_(s, claimed, keyRows);
         }),
       );
       responses.forEach(function (response, index) {
@@ -521,7 +653,11 @@ function deliverPushEvent_(id) {
         else failed.push(String(code));
       });
     } catch (error) {
-      failed.push("NETWORK");
+      failed.push(
+        /permission|permiso|authorize|autoriz/i.test(String(error.message))
+          ? "AUTHORIZATION"
+          : "NETWORK",
+      );
     }
   }
   locked_(function () {
@@ -547,6 +683,7 @@ function deliverPushEvent_(id) {
       Date.now() + Math.min(900000, 30000 * Math.pow(2, e.attempts)),
     ).toISOString();
     e.lastError = failed.slice(0, 3).join(",");
+    if (!failed.length && !subscriptions.length) e.state = "skipped";
     e.leaseUntil = "";
     e.leaseToken = "";
     write_("PushEvents", e);
@@ -577,12 +714,14 @@ function deliverPushQueue() {
   due.forEach(function (e) {
     sent += deliverPushEvent_(e.id).sent || 0;
   });
-  if (
-    !rows_("PushEvents").some(function (e) {
-      return ["pending", "retry", "sending"].includes(e.state);
-    })
-  )
-    PropertiesService.getScriptProperties().setProperty("pushPending", "0");
+  locked_(function () {
+    if (
+      !rows_("PushEvents").some(function (e) {
+        return ["pending", "retry", "sending"].includes(e.state);
+      })
+    )
+      PropertiesService.getScriptProperties().setProperty("pushPending", "0");
+  });
   return { sent: sent };
 }
 /** Only disposable delivery metadata expires. Never remove business records. */
@@ -604,6 +743,19 @@ function cleanupPush_() {
   expired.forEach(function (s) {
     cache_().remove("push-grant:" + s.id);
   });
+  if (book_().getSheetByName("PushKeys")) {
+    const ids = {};
+    expired.forEach(function (s) {
+      ids[s.id] = true;
+    });
+    deleteRows_(
+      "PushKeys",
+      rows_("PushKeys").filter(function (k) {
+        return ids[k.id];
+      }),
+    );
+    cache_().remove("push-keys");
+  }
   deleteRows_("PushSubscriptions", expired);
   cache_().remove("push-subscriptions");
 }

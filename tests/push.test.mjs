@@ -7,6 +7,7 @@ import {
   createHash,
 } from "node:crypto";
 import { environment } from "./support/gas.mjs";
+import { receiver, decryptPush } from "./support/push-crypto.mjs";
 
 function keys() {
   const { privateKey, publicKey } = generateKeyPairSync("ec", {
@@ -33,6 +34,73 @@ function ready() {
   ok(e.call("configurePush", k, e.owner));
   return { ...e, k };
 }
+test("avisos: payload cifrado RFC 8291 interoperable con OpenSSL y sin datos personales", () => {
+  const e = ready(),
+    ua = receiver();
+  const grant = ok(
+    e.call(
+      "subscribePush",
+      {
+        scope: "admin",
+        endpoint: "https://fcm.googleapis.com/fcm/send/encrypted",
+        keys: ua.keys,
+      },
+      e.owner,
+    ),
+  );
+  assert.equal(ok(e.call("pushStatus", grant)).encrypted, true);
+  const { p } = order(e);
+  const second = {
+    ...p,
+    id: randomUUID(),
+    trackingToken: createHash("sha256").update(randomUUID()).digest("hex"),
+  };
+  ok(e.call("createRequest", second));
+  const request = e.pushTransport.calls.at(-1);
+  assert.equal(request.headers["Content-Encoding"], "aes128gcm");
+  assert.equal(request.contentType, "application/octet-stream");
+  const clear = decryptPush(request.payload, ua);
+  assert.equal(clear.v, 1);
+  assert.equal(clear.notification.scope, "admin");
+  assert.equal(clear.notification.requestId, second.id);
+  assert.equal(clear.notification.grantId, grant.id);
+  for (const secret of [
+    p.name,
+    p.phone,
+    p.address,
+    e.k.privateKey,
+    grant.token,
+  ])
+    assert.equal(JSON.stringify(clear).includes(secret), false);
+  const changed = [...request.payload];
+  changed[changed.length - 20] ^= 1;
+  assert.throws(() => decryptPush(changed, ua));
+  ok(
+    e.call("createRequest", {
+      ...p,
+      id: randomUUID(),
+      trackingToken: createHash("sha256").update(randomUUID()).digest("hex"),
+    }),
+  );
+  assert.notDeepEqual(
+    e.pushTransport.calls.at(-1).payload.slice(0, 86),
+    request.payload.slice(0, 86),
+  );
+  const before = e.context.rows_("PushSubscriptions").length;
+  assert.equal(
+    e.call(
+      "subscribePush",
+      {
+        scope: "admin",
+        endpoint: "https://fcm.googleapis.com/fcm/send/bad",
+        keys: { p256dh: "A".repeat(87), auth: ua.keys.auth },
+      },
+      e.owner,
+    ).error.code,
+    "VALIDATION",
+  );
+  assert.equal(e.context.rows_("PushSubscriptions").length, before);
+});
 test("avisos: el jefe prepara hojas faltantes desde el panel sin tocar servicios", () => {
   const e = environment();
   e.tables.delete("PushEvents");
@@ -96,8 +164,49 @@ function order(e) {
     service: "envio",
     consent: true,
   };
-  return { p, data: ok(e.call("createRequest", p)) };
+  // Queue/transport unit cases separate enqueueing from sending deliberately.
+  // The real HTTP path and inline delivery are covered below and in PWA tests.
+  return { p, data: e.context.dispatch_("createRequest", p, "") };
 }
+test("avisos: guardar por HTTP despacha sin una segunda petición del navegador", () => {
+  const e = ready(),
+    admin = sub(e),
+    { p } = order(e);
+  const other = {
+    ...p,
+    id: randomUUID(),
+    trackingToken: createHash("sha256").update(randomUUID()).digest("hex"),
+  };
+  const before = e.pushTransport.calls.length;
+  const result = ok(e.call("createRequest", other));
+  assert.equal(e.pushTransport.calls.length, before + 1);
+  assert.equal(
+    e.context.rows_("PushEvents").find((x) => x.id === result.pushDispatch.id)
+      .state,
+    "sent",
+  );
+  assert.equal(ok(e.call("pushStatus", admin)).shownAt, "");
+  ok(e.call("pushReceived", admin));
+  assert.ok(ok(e.call("pushStatus", admin)).shownAt);
+  assert.equal(
+    e.call("pushStatus", { ...admin, token: "a".repeat(64) }).error.code,
+    "UNAUTHORIZED",
+  );
+  assert.equal(
+    e.call("pushStatus", {
+      ...admin,
+      endpoint: "https://fcm.googleapis.com/fcm/send/other",
+    }).error.code,
+    "UNAUTHORIZED",
+  );
+  const serialized = JSON.stringify(ok(e.call("pushStatus", admin)));
+  for (const secret of [
+    e.k.privateKey,
+    admin.token,
+    "https://fcm.googleapis.com",
+  ])
+    assert.equal(serialized.includes(secret), false);
+});
 function sub(e, scope = "admin", p = {}) {
   return ok(
     e.call(

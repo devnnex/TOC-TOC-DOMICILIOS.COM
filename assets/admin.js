@@ -21,10 +21,10 @@ import {
   sound,
   poll,
   inCity,
-} from "./core.js?v=1.3.3";
-import { mapPreview, autocomplete } from "./maps.js?v=1.3.3";
-import { normalizeOrder } from "./orders.js?v=1.3.3";
-import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.3";
+} from "./core.js?v=1.3.4";
+import { mapPreview, autocomplete } from "./maps.js?v=1.3.4";
+import { normalizeOrder } from "./orders.js?v=1.3.4";
+import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.4";
 banner();
 wireDialogs();
 const sessionKey = demo ? "toc-demo-session" : "toc-session";
@@ -318,7 +318,22 @@ async function sync() {
       $("#admin-error").hidden = true;
       return;
     }
-    const incoming = result.orders.map(normalizeOrder);
+    const incoming = result.orders
+      .map(normalizeOrder)
+      .map((order, index) => ({ ...order, _arrival: index }))
+      .sort((a, b) => {
+        const priority = {
+          pending: 0,
+          accepted: 1,
+          completed: 2,
+          cancelled: 3,
+        };
+        return (
+          priority[a.status] - priority[b.status] ||
+          String(a.createdAt).localeCompare(String(b.createdAt)) ||
+          a._arrival - b._arrival
+        );
+      });
     const ids = new Set(orders.map((o) => o.id));
     const newOnes = incoming.filter(
       (o) => o.status === "pending" && !ids.has(o.id),

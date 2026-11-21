@@ -6,6 +6,7 @@ import { environment } from "./gas.mjs";
 // No interception gap can send a service or notification to the live Sheet.
 export async function startPwaServer() {
   const backend = environment(),
+    requests = [],
     root = resolve("."),
     prefix = "/TOC-TOC-DOMICILIOS.COM/";
   const types = {
@@ -26,6 +27,7 @@ export async function startPwaServer() {
         let body = "";
         for await (const chunk of req) body += chunk;
         const p = JSON.parse(body);
+        requests.push(p.action);
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Cache-Control": "no-store",
@@ -58,6 +60,7 @@ export async function startPwaServer() {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return {
     backend,
+    requests,
     base: `http://127.0.0.1:${server.address().port}${prefix}`,
     close: () => new Promise((resolve) => server.close(resolve)),
   };

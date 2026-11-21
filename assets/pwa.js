@@ -6,8 +6,8 @@ import {
   sound,
   storageGet,
   storageSet,
-} from "./core.js?v=1.3.3";
-import "./pwa-store.js?v=1.3.3";
+} from "./core.js?v=1.3.4";
+import "./pwa-store.js?v=1.3.4";
 const ROOT = new URL("../", import.meta.url).href,
   store = globalThis.TocPwaStore;
 let registration,
@@ -49,6 +49,42 @@ function status(message) {
   document
     .querySelectorAll("[data-push-status]")
     .forEach((n) => (n.textContent = message));
+  document.querySelectorAll("[data-notification-status]").forEach((n) => {
+    n.textContent = message;
+    n.hidden = role === "client" && !targetProvider();
+  });
+}
+function showHealth(health) {
+  let message =
+    "Este dispositivo está vinculado. Falta comprobar la recepción de un aviso.";
+  if (health.last?.state === "retry" || health.last?.state === "failed")
+    message = /401|403|AUTHORIZATION/.test(health.last.error)
+      ? "El servicio de avisos fue rechazado. El jefe debe revisar su activación."
+      : "No pudimos entregar el último aviso. Pulsa Probar un aviso para comprobarlo de nuevo.";
+  else if (health.last?.state === "skipped")
+    message =
+      "El aviso no tenía un dispositivo disponible. Vuelve a activar los avisos.";
+  else if (
+    health.last?.state === "sent" &&
+    (!health.shownAt || health.shownAt < health.last.at)
+  )
+    message =
+      "Aviso enviado. Estamos esperando la confirmación de este dispositivo.";
+  else if (health.shownAt)
+    message =
+      "Última notificación mostrada en este dispositivo: " +
+      new Date(health.shownAt).toLocaleTimeString("es-CO", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }) +
+      ".";
+  status(message);
+  return health;
+}
+async function verifyGrant(grant, endpoint) {
+  return showHealth(
+    await api("pushStatus", { id: grant.id, token: grant.token, endpoint }),
+  );
 }
 function base64(bytes) {
   let binary = "";
@@ -77,21 +113,22 @@ async function ensureRegistration() {
   if (registration.active) return registration;
   return navigator.serviceWorker.ready;
 }
-async function bind() {
+async function bind(force = false) {
   if (demo || !supported() || Notification.permission !== "granted")
     return false;
   const target = targetProvider();
   if (!target) return false;
   const key = role + ":" + (target.id || target.userId || "");
-  if (boundTarget === key) return true;
+  if (boundTarget === key && !force) return true;
   if (binding) {
     await binding;
-    return boundTarget === key ? true : bind();
+    return boundTarget === key && !force ? true : bind(force);
   }
   const registerTarget = async () => {
     const reg = await ensureRegistration(),
       sub = await reg.pushManager.getSubscription();
     if (!sub) return false;
+    const keys = sub.toJSON?.().keys;
     const previous =
       (await store.get(
         ROOT,
@@ -103,15 +140,25 @@ async function bind() {
       previous.endpoint === sub.endpoint &&
       new Date(previous.expiresAt).getTime() > Date.now() + 3600000
     ) {
-      if (role === "client")
-        await store.put(ROOT, "client-grant:" + target.id, previous);
-      boundTarget = key;
-      emit({ enabled: true, role });
-      return true;
+      try {
+        const health = await verifyGrant(previous, sub.endpoint);
+        if (keys && !health.encrypted)
+          throw Object.assign(
+            new Error("Actualizando la vinculación del dispositivo."),
+            { code: "UNAUTHORIZED" },
+          );
+        if (role === "client")
+          await store.put(ROOT, "client-grant:" + target.id, previous);
+        boundTarget = key;
+        emit({ enabled: true, role });
+        return true;
+      } catch (error) {
+        if (!["UNAUTHORIZED", "NOT_FOUND"].includes(error.code)) throw error;
+      }
     }
     const grant = await api(
       "subscribePush",
-      { scope: role, ...target, endpoint: sub.endpoint },
+      { scope: role, ...target, endpoint: sub.endpoint, keys },
       sessionProvider(),
     );
     const dispatch = grant.pushDispatch;
@@ -122,8 +169,8 @@ async function bind() {
     if (role === "client")
       await store.put(ROOT, "client-grant:" + target.id, grant);
     if (dispatch) api("dispatchPush", dispatch).catch(() => {});
+    await verifyGrant(grant, sub.endpoint);
     boundTarget = key;
-    status("Avisos activados en este dispositivo.");
     emit({ enabled: true, role });
     return true;
   };
@@ -170,6 +217,7 @@ async function activatePush(automatic = false) {
     storageSet("toc-notification-prompted", true, sessionStorage);
   }
   try {
+    status("Preparando y comprobando los avisos de este dispositivo…");
     const permissionPromise =
       Notification.permission === "default"
         ? Notification.requestPermission()
@@ -212,36 +260,79 @@ async function activatePush(automatic = false) {
       );
     }
     let subscription = await reg.pushManager.getSubscription();
+    if (
+      subscription?.options?.applicationServerKey &&
+      base64(new Uint8Array(subscription.options.applicationServerKey)) !==
+        info.publicKey
+    ) {
+      await subscription.unsubscribe();
+      subscription = null;
+      boundTarget = "";
+    }
     if (!subscription)
       subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: bytes(info.publicKey),
       });
     await store.put(ROOT, "config", { apiUrl: config.apiUrl, base: ROOT });
-    const ready = await bind();
+    const ready = await bind(true);
     if (!ready) {
       status("Avisos preparados. Se vincularán cuando solicites un servicio.");
-      emit({ enabled: true, role, pending: true });
+      emit({ enabled: false, role, pending: true });
     }
     document
       .querySelectorAll("[data-enable-push]")
-      .forEach((n) => (n.textContent = "Avisos activados"));
+      .forEach(
+        (n) => (n.textContent = ready ? "Comprobar avisos" : "Vincular avisos"),
+      );
+    if (role === "client") repairPreviousServices(subscription).catch(() => {});
     return true;
   } catch (error) {
     status(
-      ["UNAUTHORIZED", "UNKNOWN_ACTION", "PUSH_SETUP_REQUIRED"].includes(
-        error.code,
-      )
-        ? "El equipo debe completar la activación de los avisos."
-        : error.message,
+      error.code === "UNKNOWN_ACTION"
+        ? "El servicio de avisos necesita actualizarse. Avisa al jefe."
+        : ["UNAUTHORIZED", "PUSH_SETUP_REQUIRED"].includes(error.code)
+          ? "El equipo debe completar la activación de los avisos."
+          : error.message,
     );
     if (!automatic)
       notify(
-        ["UNAUTHORIZED", "UNKNOWN_ACTION"].includes(error.code)
-          ? "Los avisos necesitan completar su activación."
-          : error.message,
+        error.code === "UNKNOWN_ACTION"
+          ? "El servicio de avisos necesita actualizarse. Avisa al jefe."
+          : ["UNAUTHORIZED"].includes(error.code)
+            ? "Los avisos necesitan completar su activación."
+            : error.message,
       );
     return false;
+  }
+}
+async function repairPreviousServices(subscription) {
+  const saved = await store.entries(ROOT, "client-grant:");
+  for (const [key, old] of saved) {
+    if (
+      old.endpoint === subscription.endpoint ||
+      new Date(old.expiresAt).getTime() <= Date.now()
+    )
+      continue;
+    const tracking = await store.get(ROOT, "client-tracking:" + old.requestId);
+    if (!tracking) continue;
+    try {
+      const grant = await api("subscribePush", {
+        scope: "client",
+        id: tracking.id,
+        trackingToken: tracking.trackingToken,
+        endpoint: subscription.endpoint,
+        keys: subscription.toJSON?.().keys,
+      });
+      const dispatch = grant.pushDispatch;
+      delete grant.pushDispatch;
+      grant.endpoint = subscription.endpoint;
+      grant.targetKey = "client:" + tracking.id;
+      await store.put(ROOT, key, grant);
+      if (dispatch) api("dispatchPush", dispatch).catch(() => {});
+    } catch {
+      /* A removed/expired service must not block the current one. */
+    }
   }
 }
 export async function syncPush() {
@@ -254,7 +345,13 @@ export async function syncPush() {
       });
     await prepareAutomaticPush();
     return await bind();
-  } catch {
+  } catch (error) {
+    emit({ enabled: false, role });
+    status(
+      error.code === "UNKNOWN_ACTION"
+        ? "El equipo debe actualizar el servicio para confirmar tus avisos."
+        : error.message,
+    );
     return false;
   }
 }
@@ -345,11 +442,31 @@ export async function testPush() {
     status(error.message);
   }
 }
+export async function checkPush() {
+  try {
+    if (!(await enablePush())) return;
+    const grant = await store.get(ROOT, "grant:" + role);
+    if (grant) await verifyGrant(grant, grant.endpoint);
+  } catch (error) {
+    status(
+      error.code === "UNKNOWN_ACTION"
+        ? "El equipo debe actualizar el servicio de avisos."
+        : error.message,
+    );
+  }
+}
 export async function initPwa(options = {}) {
   role = options.role || "client";
   targetProvider = options.target || (() => null);
   sessionProvider = options.session || (() => "");
   navigator.serviceWorker?.addEventListener("message", async (event) => {
+    if (event.data?.type === "TOC_PUSH_RECEIVED") {
+      if (event.data.scope === role) {
+        status("Notificación mostrada en este dispositivo.");
+        window.dispatchEvent(new CustomEvent("toc:service-update"));
+      }
+      return;
+    }
     if (event.data?.type !== "TOC_SERVICE_ALERT") return;
     const n = event.data.notification;
     if (n?.scope !== role || document.visibilityState === "hidden") {
@@ -404,6 +521,9 @@ export async function initPwa(options = {}) {
   document
     .querySelectorAll("[data-test-push]")
     .forEach((n) => n.addEventListener("click", testPush));
+  document
+    .querySelectorAll("[data-check-push]")
+    .forEach((n) => n.addEventListener("click", checkPush));
   const connection = () =>
     document.querySelectorAll("[data-offline-status]").forEach((n) => {
       n.hidden = navigator.onLine;

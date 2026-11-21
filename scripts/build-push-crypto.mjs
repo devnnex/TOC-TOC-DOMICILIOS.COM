@@ -19,7 +19,9 @@ const service = await readFile("backend/push-service.gs", "utf8");
 const licenses =
   (await readFile("node_modules/@noble/curves/LICENSE", "utf8")) +
   "\n" +
-  (await readFile("node_modules/@noble/hashes/LICENSE", "utf8"));
+  (await readFile("node_modules/@noble/hashes/LICENSE", "utf8")) +
+  "\n" +
+  (await readFile("node_modules/@noble/ciphers/LICENSE", "utf8"));
 await writeFile(
   "Code.gs",
   code +
@@ -43,6 +45,10 @@ await copyFile(
 await copyFile(
   "node_modules/@noble/hashes/LICENSE",
   "vendor/noble-hashes-LICENSE.txt",
+);
+await copyFile(
+  "node_modules/@noble/ciphers/LICENSE",
+  "vendor/noble-ciphers-LICENSE.txt",
 );
 console.log(
   "Firma de avisos integrada en Code.gs; no contiene claves privadas.",

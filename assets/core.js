@@ -1,5 +1,16 @@
 export const config = window.TOC_CONFIG;
 export const demo = new URLSearchParams(location.search).get("demo") === "1";
+const changeSignal =
+  typeof BroadcastChannel === "function"
+    ? new BroadcastChannel(
+        "toc-services:" +
+          new URL("../", import.meta.url).pathname +
+          (demo ? ":demo" : ""),
+      )
+    : null;
+if (changeSignal)
+  changeSignal.onmessage = () =>
+    window.dispatchEvent(new CustomEvent("toc:service-update"));
 export const $ = (s, root = document) => root.querySelector(s);
 export const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 export const icon = (name) => {
@@ -109,7 +120,7 @@ export async function passwordKey(password, salt) {
 let demoModule;
 export async function api(action, data = {}, session = "") {
   if (demo) {
-    demoModule ||= import("./demo.js?v=1.3.3");
+    demoModule ||= import("./demo.js?v=1.3.4");
     return (await demoModule).request(action, data, session);
   }
   if (!config.apiUrl)
@@ -157,18 +168,22 @@ export async function api(action, data = {}, session = "") {
       const dispatch = result.data.pushDispatch;
       delete result.data.pushDispatch;
       // Runs separately: broker delivery never blocks the service confirmation.
-      fetch(config.apiUrl, {
-        method: "POST",
-        credentials: "omit",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action: "dispatchPush",
-          data: dispatch,
-          session: "",
-        }),
-        keepalive: true,
-      }).catch(() => {});
+      if (!result.data.pushDispatched)
+        fetch(config.apiUrl, {
+          method: "POST",
+          credentials: "omit",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "dispatchPush",
+            data: dispatch,
+            session: "",
+          }),
+          keepalive: true,
+        }).catch(() => {});
+      delete result.data.pushDispatched;
     }
+    if (["createRequest", "transition", "cancelRequest"].includes(action))
+      changeSignal?.postMessage({ changed: true });
     return result.data;
   } catch (e) {
     if (e.name === "AbortError")
@@ -220,10 +235,17 @@ export function poll(fn, interval = 5000) {
   let stopped = false,
     timer,
     running = false,
+    requested = false,
     failures = 0;
   const run = async () => {
-    if (stopped || running) return;
+    if (stopped) return;
+    if (running) {
+      requested = true;
+      return;
+    }
     clearTimeout(timer);
+    const started = Date.now();
+    requested = false;
     running = true;
     try {
       await fn();
@@ -235,7 +257,15 @@ export function poll(fn, interval = 5000) {
       if (!stopped)
         timer = setTimeout(
           run,
-          document.hidden ? 30000 : Math.min(interval * 2 ** failures, 30000),
+          document.hidden
+            ? 30000
+            : requested && !failures
+              ? 0
+              : Math.max(
+                  250,
+                  Math.min(interval * 2 ** failures, 30000) -
+                    (Date.now() - started),
+                ),
         );
     }
   };
@@ -255,7 +285,7 @@ export function poll(fn, interval = 5000) {
     },
   };
 }
-export { sound } from "./audio.js?v=1.3.3";
+export { sound } from "./audio.js?v=1.3.4";
 export function distance(a, b) {
   const r = Math.PI / 180,
     dLat = (b.lat - a.lat) * r,

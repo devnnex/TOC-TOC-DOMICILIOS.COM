@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
 import { startPwaServer } from "./support/pwa-server.mjs";
+import { receiver, decryptPush } from "./support/push-crypto.mjs";
 const { chromium } = await import(
   process.env.TOC_PLAYWRIGHT_MODULE || "playwright"
 );
@@ -21,24 +22,29 @@ const context = await browser.newContext({
   errors = [],
   report = [];
 const workerProtocol = await browser.newBrowserCDPSession();
+const receivingDevice = receiver();
 let protocolSequence = 0;
 context.on("page", (page) =>
   page.on("pageerror", (error) => errors.push(error.message)),
 );
 // Only the browser's subscription broker is stubbed. WebCrypto, service worker,
 // permissions, IndexedDB, the real Code.gs, inbox fetch and showNotification run.
-await context.addInitScript(() => {
-  let sub = null;
-  PushManager.prototype.getSubscription = async () => sub;
-  PushManager.prototype.subscribe = async function (options) {
-    if (!options.applicationServerKey?.length) throw new Error("Missing key");
-    sub = {
-      endpoint: "https://fcm.googleapis.com/fcm/send/browser-qa",
-      unsubscribe: async () => true,
+await context.addInitScript(
+  ({ keys }) => {
+    let sub = null;
+    PushManager.prototype.getSubscription = async () => sub;
+    PushManager.prototype.subscribe = async function (options) {
+      if (!options.applicationServerKey?.length) throw new Error("Missing key");
+      sub = {
+        endpoint: "https://fcm.googleapis.com/fcm/send/browser-qa",
+        unsubscribe: async () => true,
+        toJSON: () => ({ keys }),
+      };
+      return sub;
     };
-    return sub;
-  };
-});
+  },
+  { keys: receivingDevice.keys },
+);
 function ok(r) {
   assert.equal(r.ok, true, r.error?.message);
   return r.data;
@@ -112,13 +118,13 @@ try {
   };
   const created = ok(backend.call("createRequest", p));
   ok(backend.call("dispatchPush", created.pushDispatch));
-  async function wakeByPush() {
+  async function wakeByPush(data = "") {
     await cdp.send("ServiceWorker.stopAllWorkers");
     await until(() => workerRunning === "stopped", "El worker no se detuvo.");
     await cdp.send("ServiceWorker.deliverPushMessage", {
       origin: new URL(base).origin,
       registrationId,
-      data: "",
+      data,
     });
     await until(
       () => workerRunning === "running",
@@ -128,6 +134,13 @@ try {
   }
   await wakeByPush();
   await assertNotification("Tienes servicios por aceptar");
+  const adminGrant = backend.context
+    .rows_("PushSubscriptions")
+    .find((s) => s.scope === "admin");
+  await until(
+    () => !!backend.context.system_("pushShown:" + adminGrant.id),
+    "No se confirmó la recepción del equipo.",
+  );
   report.push(
     "El aviso del equipo despierta el worker detenido, con todas las páginas cerradas (entrada Push simulada por Chromium).",
   );
@@ -185,6 +198,20 @@ try {
     .locator("#keep-open-title")
     .filter({ hasText: "Avisos activados" })
     .waitFor();
+  const priorGrant = backend.context
+      .rows_("PushSubscriptions")
+      .find((s) => s.scope === "client" && s.requestId === p.id),
+    priorToken = priorGrant.tokenHash;
+  priorGrant.active = false;
+  backend.context.write_("PushSubscriptions", priorGrant);
+  backend.cache.clear();
+  await client.reload();
+  await until(() => {
+    const row = backend.context
+      .rows_("PushSubscriptions")
+      .find((s) => s.id === priorGrant.id);
+    return row.active === true && row.tokenHash !== priorToken;
+  }, "No se reparó la vinculación revocada del teléfono.");
   await client.close();
   const accepted = ok(
     backend.call(
@@ -201,10 +228,24 @@ try {
     ),
   );
   ok(backend.call("dispatchPush", accepted.pushDispatch));
-  await wakeByPush();
+  const direct = decryptPush(
+    backend.pushTransport.calls.at(-1).payload,
+    receivingDevice,
+  );
+  const traceStart = server.requests.length;
+  await wakeByPush(JSON.stringify(direct));
   await assertNotification("Tu domiciliario está en camino");
+  await until(
+    () => !!backend.context.system_("pushShown:" + priorGrant.id),
+    "No se confirmó la recepción del cliente.",
+  );
+  assert.equal(
+    server.requests.slice(traceStart).includes("pushInbox"),
+    false,
+    "El payload directo no debe consultar de nuevo el estado.",
+  );
   report.push(
-    "Aceptación entregada al cliente con la página cerrada y sin revelar dirección ni celular en el aviso.",
+    "Aceptación cifrada interoperable con OpenSSL: se muestra con la página cerrada y sin consultar otra vez la bandeja de Google.",
   );
   const second = {
     ...p,
@@ -230,7 +271,7 @@ try {
   );
   await another.bringToFront();
   await another.evaluate(async () => {
-    const { sound } = await import("./assets/core.js?v=1.3.3");
+    const { sound } = await import("./assets/core.js?v=1.3.4");
     await sound.enable();
     await sound.context.suspend();
     window.resumeAudio = sound.context.resume.bind(sound.context);
@@ -254,7 +295,9 @@ try {
   await cdp.send("ServiceWorker.deliverPushMessage", {
     origin: new URL(base).origin,
     registrationId,
-    data: "",
+    data: JSON.stringify(
+      decryptPush(backend.pushTransport.calls.at(-1).payload, receivingDevice),
+    ),
   });
   await until(async () => {
     const n = (await workerNotifications()).find(
@@ -279,11 +322,13 @@ try {
   await cdp.send("ServiceWorker.deliverPushMessage", {
     origin: new URL(base).origin,
     registrationId,
-    data: "",
+    data: JSON.stringify(
+      decryptPush(backend.pushTransport.calls.at(-1).payload, receivingDevice),
+    ),
   });
-  await assertNotification("Un pendiente menos");
+  await assertNotification("Pedido exitosamente realizado.");
   const completedNotice = (await workerNotifications()).find(
-    (n) => n.title === "Un pendiente menos",
+    (n) => n.title === "Pedido exitosamente realizado.",
   );
   assert.equal(completedNotice.renotify, true);
   assert.ok(completedNotice.url.endsWith("#service=" + p.id));
@@ -397,6 +442,36 @@ try {
     );
   } finally {
     await permissions.close();
+  }
+  const iphone = await browser.newContext({
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  try {
+    const page = await iphone.newPage();
+    await page.addInitScript(() => {
+      window.permissionPrompts = 0;
+      Notification.requestPermission = () => {
+        permissionPrompts++;
+        return Promise.resolve("granted");
+      };
+    });
+    await page.goto(base + "index.html");
+    const ready = await page.evaluate(async () => {
+      const pwa = await import("./assets/pwa.js?v=1.3.4");
+      return pwa.enablePush();
+    });
+    assert.equal(ready, false);
+    assert.equal(await page.evaluate(() => permissionPrompts), 0);
+    await page.locator("#toast").filter({ hasText: "En iPhone" }).waitFor();
+    report.push(
+      "Ruta de iPhone sin instalar: explica cómo añadir a inicio y no declara avisos activados ni pide un permiso imposible.",
+    );
+  } finally {
+    await iphone.close();
   }
   assert.deepEqual(errors, []);
   await writeFile(

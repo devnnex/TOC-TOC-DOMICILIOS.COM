@@ -20,6 +20,7 @@ Se crearán estas hojas y columnas sin borrar otras hojas del documento:
 | System | Versión y fechas de mantenimiento |
 | PushSubscriptions | Dispositivos autorizados y permisos de avisos por cuenta o servicio |
 | PushEvents | Cola técnica de entrega y reintentos de avisos |
+| PushKeys | Clave pública del receptor y secreto de suscripción para cifrar cada aviso |
 
 El registro de ejecución mostrará un **código privado de instalación**. Consérvalo temporalmente: se usará para crear el primer jefe. No lo pegues en GitHub, en `config.js`, ni en un chat público. `setup()` se puede repetir; no reinicia datos. Si detecta columnas incompatibles, se detiene para evitar sobrescribir información.
 
@@ -97,6 +98,8 @@ No se implementan pagos, tarifas automáticas, seguimiento GPS del domiciliario 
 
 ### Avisos fuera de la página y aplicación instalada
 
+**Actualización 1.3.4:** copia completo Code.gs, ejecuta `setup()` y actualiza la implementación a una nueva versión, conservando `/exec`. No cambia los encabezados de servicios ni elimina datos; añade la hoja técnica PushKeys. Abre la PWA y pulsa **Actualizar aplicación** si aparece. Luego pulsa **Activar avisos / Comprobar avisos** en cada teléfono y en el panel para comprobar y renovar su vinculación. Permitir notificaciones en el navegador no prueba por sí solo que ese dispositivo esté registrado en el servidor. El texto «aviso enviado» no significa «recibido»: la confirmación aparece cuando el worker comunica que mostró el aviso. Usa **Probar un aviso**, cierra la app y comprueba una aceptación y finalización reales en el teléfono.
+
 **Corrección 1.3.2:** reemplaza completo Code.gs y conserva appsscript.json actualizado; autoriza los permisos y publica una nueva versión de la implementación existente. Desde el panel, el jefe pulsa **Activar avisos**: ahora puede preparar las dos hojas de notificaciones y su disparador si faltan, sin impedir el ingreso ni borrar servicios. También puedes ejecutar `setup()` como antes. Recarga la web o usa **Actualizar aplicación** si una PWA anterior ofrece mejoras pendientes. El permiso del sistema y el sonido dentro de la página son comprobaciones distintas: prueba ambos con **Probar un aviso** y **Probar sonido y voz**.
 
 Esta versión conserva todas las solicitudes vinculadas al dispositivo, permite recuperar la anterior desde su notificación y solicita volver a avisar cuando finaliza. La presencia de una ventana visible no basta para silenciar un aviso: debe confirmar que el audio realmente arrancó. La cola de audio conserva avisos pendientes al suspenderse o recargarse la pestaña. Si falta desbloquear sonido, pulsa el control de sonido pendiente; no se presenta ese aviso como ya reproducido.
@@ -111,7 +114,7 @@ Esta versión conserva todas las solicitudes vinculadas al dispositivo, permite 
 4. Usa **Probar un aviso** en Configuración y luego prueba una solicitud y su aceptación con las páginas cerradas, en dos dispositivos reales. No envíes solicitudes ficticias al negocio durante una operación activa.
 5. **Instalar app** añade la experiencia a la pantalla de inicio cuando el navegador lo permite. En iPhone/iPad, añade la página a inicio desde Compartir y abre esa aplicación para habilitar los avisos. Cliente y equipo tienen accesos instalables independientes.
 
-Los avisos usan Web Push real con VAPID y un service worker, no sondeos en una pestaña oculta. El servidor envía una señal sin datos personales; el worker consulta una bandeja con permiso limitado y muestra el estado. La entrega se solicita por separado de la respuesta del servicio para no bloquear la confirmación. `setup()` crea `deliverPushQueue` cada minuto como respaldo y para reintentos, además de `dailyMaintenance`. Un error temporal aplica hasta seis intentos con espera creciente; un destino caducado se desactiva. Revisar `PushEvents.state` y `lastError` permite diagnosticar sin registrar secretos.
+Los avisos usan Web Push real con VAPID y un service worker, no sondeos en una pestaña oculta. El servidor guarda el cambio y solicita la entrega directamente. El contenido se cifra para el dispositivo; el worker lo muestra sin tener que consultar Google antes. Para suscripciones antiguas sin claves se conserva una señal sin contenido con consulta de bandeja limitada. Las notificaciones no incluyen nombre, teléfono ni dirección del cliente. `setup()` crea `deliverPushQueue` cada minuto como respaldo y para reintentos, además de `dailyMaintenance`. Un error temporal aplica hasta seis intentos con espera creciente; un destino caducado se desactiva. Revisar `PushEvents.state` y `lastError`, junto con **Comprobar avisos**, permite diagnosticar sin mostrar secretos.
 
 El permiso de avisos del equipo vence en un año y el del cliente en 30 días; al volver a la página se renueva si está próximo a vencer. Las suscripciones y destinos permanecen privados en Sheets. Solo se permiten proveedores conocidos de Chrome/Firefox/Apple/Windows mediante HTTPS; no se aceptan destinos arbitrarios. El límite de UrlFetch, ejecuciones y disparadores de Apps Script también aplica: no hay garantía de latencia constante ni de entrega ilimitada.
 
