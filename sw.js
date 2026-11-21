@@ -1,6 +1,6 @@
-/* TocToc 1.3.1 — app shell and real, payload-less Web Push. */
-importScripts("assets/pwa-store.js?v=1.3.1");
-const APP_VERSION = "1.3.1",
+/* TocToc 1.3.2 — app shell and real, payload-less Web Push. */
+importScripts("assets/pwa-store.js?v=1.3.2");
+const APP_VERSION = "1.3.2",
   SCOPE = self.registration.scope,
   CACHE_PREFIX = "toc:" + SCOPE + ":",
   CACHE = CACHE_PREFIX + APP_VERSION;
@@ -11,17 +11,18 @@ const ASSETS = [
   "config.js",
   "manifest.webmanifest",
   "admin.webmanifest",
-  "assets/client.css?v=1.3.1",
-  "assets/app.css?v=1.3.1",
-  "assets/pwa.css?v=1.3.1",
-  "assets/client.js?v=1.3.1",
-  "assets/admin.js?v=1.3.1",
-  "assets/core.js?v=1.3.1",
-  "assets/maps.js?v=1.3.1",
-  "assets/orders.js?v=1.3.1",
-  "assets/demo.js?v=1.3.1",
-  "assets/pwa.js?v=1.3.1",
-  "assets/pwa-store.js?v=1.3.1",
+  "assets/client.css?v=1.3.2",
+  "assets/app.css?v=1.3.2",
+  "assets/pwa.css?v=1.3.2",
+  "assets/client.js?v=1.3.2",
+  "assets/admin.js?v=1.3.2",
+  "assets/core.js?v=1.3.2",
+  "assets/audio.js?v=1.3.2",
+  "assets/maps.js?v=1.3.2",
+  "assets/orders.js?v=1.3.2",
+  "assets/demo.js?v=1.3.2",
+  "assets/pwa.js?v=1.3.2",
+  "assets/pwa-store.js?v=1.3.2",
   "assets/icons.svg",
   "assets/mark.svg",
   "assets/courier-cutout.webp",
@@ -140,7 +141,11 @@ async function readInbox(config, grant) {
     const result = await response.json();
     if (!result.ok) return [];
     grant.checkedAt = result.data.checkedAt;
-    await TocPwaStore.put(SCOPE, "grant:" + grant.scope, grant);
+    const key =
+      grant.scope === "client"
+        ? "client-grant:" + grant.requestId
+        : "grant:admin";
+    await TocPwaStore.put(SCOPE, key, grant);
     return result.data.notifications || [];
   } finally {
     clearTimeout(timer);
@@ -154,13 +159,18 @@ self.addEventListener("push", (event) =>
       try {
         const config = await TocPwaStore.get(SCOPE, "config");
         if (config?.apiUrl) {
-          const grants = (
-            await Promise.all(
-              ["admin", "client"].map((scope) =>
-                TocPwaStore.get(SCOPE, "grant:" + scope),
-              ),
-            )
-          ).filter((g) => g && new Date(g.expiresAt).getTime() > Date.now());
+          const saved = await TocPwaStore.entries(SCOPE, "client-grant:");
+          const legacy = await TocPwaStore.get(SCOPE, "grant:client");
+          const admin = await TocPwaStore.get(SCOPE, "grant:admin");
+          const grants = [
+            ...new Map(
+              [admin, legacy, ...saved.map(([, g]) => g)]
+                .filter(
+                  (g) => g && new Date(g.expiresAt).getTime() > Date.now(),
+                )
+                .map((g) => [g.id, g]),
+            ).values(),
+          ];
           if (grants.some((g) => g.scope === "admin"))
             fallbackPath = "admin.html#inbox";
           const all = await Promise.allSettled(
@@ -178,15 +188,11 @@ self.addEventListener("push", (event) =>
         byTag = {};
       for (const notification of notifications)
         if (!seen[notification.id]) byTag[notification.tag] = notification;
-      notifications = Object.values(byTag).slice(-3);
+      notifications = Object.values(byTag);
       const windows = await self.clients.matchAll({
         type: "window",
         includeUncontrolled: true,
       });
-      const visible = windows.some(
-        (client) =>
-          client.url.startsWith(SCOPE) && client.visibilityState === "visible",
-      );
       if (!notifications.length)
         notifications = [
           {
@@ -197,15 +203,18 @@ self.addEventListener("push", (event) =>
           },
         ];
       for (const n of notifications) {
+        const audible = await pagePlaysAlert(windows, n);
         await self.registration.showNotification(n.title, {
           body: n.body,
           tag: n.tag,
           icon: new URL("assets/icons/app-192.png", SCOPE).href,
           badge: new URL("assets/icons/badge-96.png", SCOPE).href,
           data: { url: new URL(n.path || "index.html", SCOPE).href },
-          silent: visible,
+          silent: audible,
+          renotify: !audible,
+          vibrate: audible ? [] : [180, 80, 180],
           requireInteraction:
-            !visible && String(n.path).startsWith("admin.html"),
+            !audible && String(n.path).startsWith("admin.html"),
         });
         if (n.id) seen[n.id] = Date.now();
       }
@@ -219,6 +228,37 @@ self.addEventListener("push", (event) =>
     })(),
   ),
 );
+async function pagePlaysAlert(windows, notification) {
+  if (!notification.alertKey) return false;
+  const expected = notification.scope === "admin" ? "admin.html" : "index.html";
+  const candidates = windows.filter(
+    (c) =>
+      c.url.startsWith(SCOPE) &&
+      c.visibilityState === "visible" &&
+      new URL(c.url).pathname.endsWith(expected),
+  );
+  for (const client of candidates) {
+    const audible = await new Promise((resolve) => {
+      const channel = new MessageChannel(),
+        timer = setTimeout(() => finish(false), 900);
+      function finish(value) {
+        clearTimeout(timer);
+        channel.port1.close();
+        resolve(value);
+      }
+      channel.port1.onmessage = (e) => finish(e.data?.audible === true);
+      try {
+        client.postMessage({ type: "TOC_SERVICE_ALERT", notification }, [
+          channel.port2,
+        ]);
+      } catch {
+        finish(false);
+      }
+    });
+    if (audible) return true;
+  }
+  return false;
+}
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(

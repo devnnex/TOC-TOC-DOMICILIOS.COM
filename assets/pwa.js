@@ -6,8 +6,8 @@ import {
   sound,
   storageGet,
   storageSet,
-} from "./core.js?v=1.3.1";
-import "./pwa-store.js?v=1.3.1";
+} from "./core.js?v=1.3.2";
+import "./pwa-store.js?v=1.3.2";
 const ROOT = new URL("../", import.meta.url).href,
   store = globalThis.TocPwaStore;
 let registration,
@@ -84,18 +84,27 @@ async function bind() {
   if (!target) return false;
   const key = role + ":" + (target.id || target.userId || "");
   if (boundTarget === key) return true;
-  if (binding) return binding;
-  binding = (async () => {
+  if (binding) {
+    await binding;
+    return boundTarget === key ? true : bind();
+  }
+  const registerTarget = async () => {
     const reg = await ensureRegistration(),
       sub = await reg.pushManager.getSubscription();
     if (!sub) return false;
-    const previous = await store.get(ROOT, "grant:" + role);
+    const previous =
+      (await store.get(
+        ROOT,
+        role === "client" ? "client-grant:" + target.id : "grant:admin",
+      )) || (await store.get(ROOT, "grant:" + role));
     if (
       previous &&
       previous.targetKey === key &&
       previous.endpoint === sub.endpoint &&
       new Date(previous.expiresAt).getTime() > Date.now() + 3600000
     ) {
+      if (role === "client")
+        await store.put(ROOT, "client-grant:" + target.id, previous);
       boundTarget = key;
       emit({ enabled: true, role });
       return true;
@@ -110,12 +119,19 @@ async function bind() {
     grant.targetKey = key;
     grant.endpoint = sub.endpoint;
     await store.put(ROOT, "grant:" + role, grant);
+    if (role === "client")
+      await store.put(ROOT, "client-grant:" + target.id, grant);
     if (dispatch) api("dispatchPush", dispatch).catch(() => {});
     boundTarget = key;
     status("Avisos activados en este dispositivo.");
     emit({ enabled: true, role });
     return true;
-  })().finally(() => (binding = null));
+  };
+  binding = (
+    navigator.locks
+      ? navigator.locks.request("toc-push:" + ROOT + ":" + key, registerTarget)
+      : registerTarget()
+  ).finally(() => (binding = null));
   return binding;
 }
 export function enablePush(options = {}) {
@@ -166,6 +182,12 @@ async function activatePush(automatic = false) {
     }
     const reg = await ensureRegistration();
     let info = await api("pushInfo");
+    if (
+      !info.available &&
+      role === "admin" &&
+      targetProvider()?.role === "owner"
+    )
+      info = await api("preparePush", {}, sessionProvider());
     if (!info.available)
       throw new Error("El equipo debe completar la activación de los avisos.");
     if (!info.enabled) {
@@ -224,11 +246,27 @@ async function activatePush(automatic = false) {
 }
 export async function syncPush() {
   try {
+    const target = targetProvider();
+    if (role === "client" && target)
+      await store.put(ROOT, "client-tracking:" + target.id, {
+        ...target,
+        savedAt: Date.now(),
+      });
     await prepareAutomaticPush();
     return await bind();
   } catch {
     return false;
   }
+}
+export async function restoreDeviceTracking() {
+  const id = new URLSearchParams(location.hash.slice(1)).get("service");
+  if (!id || !/^[a-f0-9-]{32,40}$/i.test(id)) return null;
+  try {
+    const saved = await store.get(ROOT, "client-tracking:" + id);
+    if (saved && Date.now() - saved.savedAt < 30 * 86400000)
+      return { id: saved.id, trackingToken: saved.trackingToken };
+  } catch {}
+  return null;
 }
 function eligibleForPush() {
   if (demo || !supported() || (ios() && !installed()) || !autoInfo?.available)
@@ -243,6 +281,12 @@ async function prepareAutomaticPush() {
   preparing = (async () => {
     // Fetch availability before a gesture; do not consume activation on a fetch.
     if (!autoInfo?.enabled) autoInfo = await api("pushInfo");
+    if (!autoInfo.available) {
+      status(
+        "Los avisos al salir aún no están preparados. El jefe puede completarlos con Activar avisos.",
+      );
+      emit({ enabled: false, role });
+    }
     if (eligibleForPush() && Notification.permission === "granted")
       await enablePush({ automatic: true });
     document.querySelectorAll("[data-permission-intro]").forEach((n) => {
@@ -305,6 +349,20 @@ export async function initPwa(options = {}) {
   role = options.role || "client";
   targetProvider = options.target || (() => null);
   sessionProvider = options.session || (() => "");
+  navigator.serviceWorker?.addEventListener("message", async (event) => {
+    if (event.data?.type !== "TOC_SERVICE_ALERT") return;
+    const n = event.data.notification;
+    if (n?.scope !== role || document.visibilityState === "hidden") {
+      event.ports[0]?.postMessage({ audible: false });
+      return;
+    }
+    window.dispatchEvent(new CustomEvent("toc:service-update", { detail: n }));
+    const audible = await sound.alert(
+      n.alertKey || n.id,
+      n.title + ". " + n.body,
+    );
+    event.ports[0]?.postMessage({ audible });
+  });
   if (!demo) {
     document.addEventListener("click", activateOnInteraction, {
       capture: true,

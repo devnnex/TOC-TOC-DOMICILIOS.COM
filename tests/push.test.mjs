@@ -33,6 +33,58 @@ function ready() {
   ok(e.call("configurePush", k, e.owner));
   return { ...e, k };
 }
+test("avisos: el jefe prepara hojas faltantes desde el panel sin tocar servicios", () => {
+  const e = environment();
+  e.tables.delete("PushEvents");
+  e.tables.delete("PushSubscriptions");
+  assert.equal(ok(e.call("installationStatus")).state, "ready");
+  const before = JSON.stringify(e.context.rows_("Requests"));
+  assert.equal(e.call("preparePush").error.code, "UNAUTHORIZED");
+  assert.equal(ok(e.call("preparePush", {}, e.owner)).available, true);
+  assert.equal(JSON.stringify(e.context.rows_("Requests")), before);
+  ok(e.call("preparePush", {}, e.owner));
+  assert.equal(
+    e.triggers.filter((t) => t.getHandlerFunction() === "deliverPushQueue")
+      .length,
+    1,
+  );
+});
+test("avisos: dos solicitudes del mismo dispositivo conservan sus permisos independientes", () => {
+  const e = ready(),
+    first = order(e),
+    second = order(e),
+    one = sub(e, "client", first.p),
+    two = sub(e, "client", second.p);
+  assert.notEqual(one.id, two.id);
+  assert.equal(e.context.rows_("PushSubscriptions").length, 2);
+  accept(e, first.p);
+  accept(e, second.p);
+  assert.ok(
+    ok(e.call("pushInbox", one)).notifications.every(
+      (n) => n.requestId === first.p.id,
+    ),
+  );
+  assert.ok(
+    ok(e.call("pushInbox", two)).notifications.every(
+      (n) => n.requestId === second.p.id,
+    ),
+  );
+  ok(
+    e.call(
+      "transition",
+      { id: first.p.id, revision: 2, status: "completed" },
+      e.owner,
+    ),
+  );
+  assert.ok(
+    ok(e.call("pushInbox", one)).notifications.every(
+      (n) => n.alertKey === "client:" + first.p.id + ":completed",
+    ),
+  );
+  assert.ok(
+    ok(e.call("pushInbox", one)).notifications[0].path.includes(first.p.id),
+  );
+});
 function order(e) {
   const p = {
     id: randomUUID(),

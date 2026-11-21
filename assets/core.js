@@ -109,7 +109,7 @@ export async function passwordKey(password, salt) {
 let demoModule;
 export async function api(action, data = {}, session = "") {
   if (demo) {
-    demoModule ||= import("./demo.js?v=1.3.1");
+    demoModule ||= import("./demo.js?v=1.3.2");
     return (await demoModule).request(action, data, session);
   }
   if (!config.apiUrl)
@@ -255,58 +255,7 @@ export function poll(fn, interval = 5000) {
     },
   };
 }
-export const sound = {
-  context: null,
-  enabled: false,
-  async enable() {
-    try {
-      this.context ||= new (window.AudioContext || window.webkitAudioContext)();
-      await this.context.resume();
-      this.enabled = this.context.state === "running";
-      if ("speechSynthesis" in window) {
-        const silent = new SpeechSynthesisUtterance("");
-        silent.volume = 0;
-        speechSynthesis.speak(silent);
-      }
-      return this.enabled;
-    } catch {
-      return false;
-    }
-  },
-  play(message, speak = true) {
-    if (!this.enabled) return;
-    try {
-      [659.25, 830.61, 987.77].forEach((freq, i) => {
-        const osc = this.context.createOscillator(),
-          gain = this.context.createGain(),
-          start = this.context.currentTime + i * 0.15;
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(0.12, start + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.42);
-        osc.connect(gain);
-        gain.connect(this.context.destination);
-        osc.start(start);
-        osc.stop(start + 0.45);
-      });
-    } catch {
-      /* La pestaña puede haber sido suspendida. */
-    }
-    if (speak && "speechSynthesis" in window) {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(message);
-      u.lang = "es-CO";
-      u.rate = 1;
-      const voices = speechSynthesis.getVoices();
-      u.voice =
-        voices.find((v) => v.lang === "es-CO") ||
-        voices.find((v) => v.lang.startsWith("es")) ||
-        null;
-      setTimeout(() => speechSynthesis.speak(u), 650);
-    }
-  },
-};
+export { sound } from "./audio.js?v=1.3.2";
 export function distance(a, b) {
   const r = Math.PI / 180,
     dLat = (b.lat - a.lat) * r,

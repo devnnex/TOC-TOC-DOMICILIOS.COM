@@ -21,9 +21,9 @@ import {
   inCity,
   time,
   distance,
-} from "./core.js?v=1.3.1";
-import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.1";
-import { initPwa, syncPush } from "./pwa.js?v=1.3.1";
+} from "./core.js?v=1.3.2";
+import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.2";
+import { initPwa, syncPush, restoreDeviceTracking } from "./pwa.js?v=1.3.2";
 banner();
 wireDialogs();
 const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",
@@ -32,6 +32,8 @@ const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",
 const form = $("#request-form"),
   requestDialog = $("#request-dialog"),
   trackingDialog = $("#tracking-dialog");
+const restoredTracking = demo ? null : await restoreDeviceTracking();
+if (restoredTracking) storageSet(savedKey, restoredTracking);
 let active = storageGet(savedKey),
   draft = storageGet(draftKey, null, sessionStorage),
   point = null,
@@ -58,6 +60,13 @@ window.addEventListener("toc:push-state", (event) => {
     $("#keep-open-description").textContent =
       "Puedes salir de esta página. Tu dispositivo debe permitir los avisos; aquí seguirás viendo el estado del servicio.";
   }
+});
+window.addEventListener("toc:audio-state", () => {
+  $("#tracking-sound").textContent = sound.enabled
+    ? "Probar sonido y voz"
+    : sound.pending
+      ? "Toca para oír el aviso pendiente"
+      : "Activar sonido y voz";
 });
 function launchState(state) {
   $("#request-launch").dataset.state = state;
@@ -561,15 +570,17 @@ function renderTracking(o) {
       .replace(/^57(?=3\d{9}$)/, "")}`;
     details.append(a);
   }
-  if (o.status === "accepted" && active.notifiedStatus !== "accepted") {
-    sound.play(
+  if (o.status === "accepted") {
+    sound.alert(
+      "client:" + o.id + ":accepted",
       "TocToc. Tu domiciliario está en camino. Tu servicio fue aceptado.",
     );
-    if (sound.enabled) active.notifiedStatus = "accepted";
-    notify("¡Tu domiciliario está en camino!");
+    if (active.lastStatus !== "accepted")
+      notify("¡Tu domiciliario está en camino!");
   }
-  if (o.status === "completed" && active.lastStatus !== "completed")
-    sound.play(
+  if (o.status === "completed")
+    sound.alert(
+      "client:" + o.id + ":completed",
       "Tu servicio de TocToc fue completado. Gracias por confiar en nosotros.",
     );
   active.lastStatus = o.status;
@@ -617,6 +628,7 @@ $("#new-request").addEventListener("click", () => {
   beginRequest();
 });
 window.addEventListener("pagehide", stopGps);
+window.addEventListener("toc:service-update", () => watcher?.refresh());
 if (active) {
   launchState(active.lastStatus);
   trackingDialog.showModal();

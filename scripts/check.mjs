@@ -13,9 +13,9 @@ new Script(await readFile("sw.js", "utf8"), { filename: "sw.js" });
 const worker = await readFile("sw.js", "utf8");
 for (const file of [
   ...worker.matchAll(
-    /'((?:assets\/|index\.html|admin\.html|config\.js)[^']+)'/g,
+    /["']((?:assets\/|index\.html|admin\.html|config\.js)[^"']+)["']/g,
   ),
-].map((m) => m[1].split("?")[0]))
+].map((m) => m[1].split(/[?#]/)[0]))
   await stat(file);
 for (const name of ["index.html", "admin.html"]) {
   const html = await readFile(name, "utf8");

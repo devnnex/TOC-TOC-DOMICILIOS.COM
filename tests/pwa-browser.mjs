@@ -61,6 +61,9 @@ try {
   });
   await cdp.send("ServiceWorker.enable");
   const admin = await context.newPage();
+  // A missed setup can be completed only by the authenticated owner.
+  backend.tables.delete("PushSubscriptions");
+  backend.tables.delete("PushEvents");
   await admin.goto(base + "admin.html");
   await admin.locator("#login-form [name=email]").fill("jefe@example.com");
   await admin
@@ -202,6 +205,98 @@ try {
   await assertNotification("Tu domiciliario está en camino");
   report.push(
     "Aceptación entregada al cliente con la página cerrada y sin revelar dirección ni celular en el aviso.",
+  );
+  const second = {
+    ...p,
+    id: randomUUID(),
+    trackingToken: createHash("sha256").update(randomUUID()).digest("hex"),
+  };
+  ok(backend.call("createRequest", second));
+  const another = await context.newPage();
+  await another.goto(base + "index.html");
+  await another.evaluate(
+    (p) => localStorage.setItem("toc-tracking", JSON.stringify(p)),
+    second,
+  );
+  await another.reload();
+  await another.locator("#tracking-dialog[open]").waitFor();
+  await another.locator("[data-enable-push]").click();
+  await until(
+    () =>
+      backend.context
+        .rows_("PushSubscriptions")
+        .filter((s) => s.scope === "client").length === 2,
+    "No se conservaron las dos solicitudes.",
+  );
+  await another.bringToFront();
+  await another.evaluate(async () => {
+    const { sound } = await import("./assets/core.js?v=1.3.2");
+    await sound.enable();
+    await sound.context.suspend();
+    window.resumeAudio = sound.context.resume.bind(sound.context);
+    sound.context.resume = () => Promise.resolve();
+  });
+  const secondAccepted = ok(
+    backend.call(
+      "transition",
+      {
+        id: second.id,
+        revision: 1,
+        status: "accepted",
+        courier: "Mensajero de prueba",
+        courierPhone: "3101234567",
+        fee: 6000,
+      },
+      backend.owner,
+    ),
+  );
+  ok(backend.call("dispatchPush", secondAccepted.pushDispatch));
+  await cdp.send("ServiceWorker.deliverPushMessage", {
+    origin: new URL(base).origin,
+    registrationId,
+    data: "",
+  });
+  await until(async () => {
+    const n = (await workerNotifications()).find(
+      (n) =>
+        n.url?.endsWith("#service=" + second.id) &&
+        n.title === "Tu domiciliario está en camino",
+    );
+    return n && n.silent === false && n.renotify === true;
+  }, "La página con audio suspendido silenció el aviso.");
+  await another.close();
+  const completed = ok(
+    backend.call(
+      "transition",
+      { id: p.id, revision: 2, status: "completed" },
+      backend.owner,
+    ),
+  );
+  ok(backend.call("dispatchPush", completed.pushDispatch));
+  // A visible page for the other role must never suppress the client's sound.
+  const unrelated = await context.newPage();
+  await unrelated.goto(base + "admin.html");
+  await cdp.send("ServiceWorker.deliverPushMessage", {
+    origin: new URL(base).origin,
+    registrationId,
+    data: "",
+  });
+  await assertNotification("Un pendiente menos");
+  const completedNotice = (await workerNotifications()).find(
+    (n) => n.title === "Un pendiente menos",
+  );
+  assert.equal(completedNotice.renotify, true);
+  assert.ok(completedNotice.url.endsWith("#service=" + p.id));
+  await unrelated.close();
+  const previous = await context.newPage();
+  await previous.goto(base + "index.html#service=" + p.id);
+  await previous
+    .locator("#tracking-title")
+    .filter({ hasText: "Un pendiente menos" })
+    .waitFor();
+  await previous.close();
+  report.push(
+    "Dos solicitudes del mismo dispositivo: finalizar la anterior vuelve a avisar y abre su seguimiento correcto, sin silenciar por otra página visible.",
   );
   const offline = await context.newPage();
   await offline.goto(base + "index.html");
@@ -363,7 +458,7 @@ async function workerNotifications(close = false) {
     });
     const expression = close
       ? "(async()=>{for(const n of await self.registration.getNotifications())n.close();return []})()"
-      : "(async()=> (await self.registration.getNotifications()).map(n=>({title:n.title,body:n.body,silent:n.silent})))()";
+      : "(async()=> (await self.registration.getNotifications()).map(n=>({title:n.title,body:n.body,silent:n.silent,renotify:n.renotify,url:n.data?.url})))()";
     await workerProtocol.send("Target.sendMessageToTarget", {
       sessionId,
       message: JSON.stringify({

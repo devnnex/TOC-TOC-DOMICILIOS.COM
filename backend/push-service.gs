@@ -68,6 +68,38 @@ function configurePush_(actor, d) {
     return pushInfo_();
   });
 }
+function preparePush_(actor) {
+  owner_(actor);
+  return locked_(function () {
+    owner_(authenticate_(actor._token));
+    ["PushSubscriptions", "PushEvents"].forEach(function (name) {
+      const s = book_().getSheetByName(name) || book_().insertSheet(name),
+        columns = SCHEMA[name];
+      if (s.getLastRow() > 0) {
+        if (
+          JSON.stringify(s.getRange(1, 1, 1, columns.length).getValues()[0]) !==
+          JSON.stringify(columns)
+        )
+          fail_(
+            "PUSH_SETUP_REQUIRED",
+            "El jefe debe revisar la preparación de los avisos.",
+          );
+      } else s.getRange(1, 1, 1, columns.length).setValues([columns]);
+      s.setFrozenRows(1);
+    });
+    if (
+      !ScriptApp.getProjectTriggers().some(function (t) {
+        return t.getHandlerFunction() === "deliverPushQueue";
+      })
+    )
+      ScriptApp.newTrigger("deliverPushQueue")
+        .timeBased()
+        .everyMinutes(1)
+        .create();
+    audit_(actor, "PUSH_PREPARED", actor.id);
+    return pushInfo_();
+  });
+}
 function pushEndpoint_(endpoint) {
   const text = text_(endpoint, 2048, true),
     match = /^https:\/\/([a-z0-9.-]+)(?::443)?(\/[^#\s]*)$/i.exec(text);
@@ -117,13 +149,7 @@ function subscribePush_(d, session) {
       d.scope === "admin"
         ? authenticate_(session)
         : authorizeTracking_(d, true);
-    const id = digest_(
-      endpoint +
-        ":" +
-        d.scope +
-        ":" +
-        (d.scope === "admin" ? fresh.id : "client"),
-    );
+    const id = digest_(endpoint + ":" + d.scope + ":" + fresh.id);
     let row = rows_("PushSubscriptions").find(function (s) {
       return s.id === id;
     });
@@ -258,6 +284,9 @@ function pushInbox_(d) {
         body: "Este dispositivo ya puede recibir tus avisos.",
         tag: "toc-test",
         path: s.scope === "admin" ? "admin.html#settings" : "index.html",
+        scope: s.scope,
+        requestId: s.requestId,
+        alertKey: "test:" + e.id,
       };
     if (s.scope === "admin") {
       const count = pushPendingCount_(s.cityId);
@@ -275,6 +304,9 @@ function pushInbox_(d) {
           : "Abre TocToc para consultar las últimas novedades.",
         tag: "toc-services-" + s.cityId,
         path: "admin.html#inbox",
+        scope: "admin",
+        requestId: e.requestId,
+        alertKey: "admin:" + e.requestId + ":new",
       };
     }
     const order = findRequest_(s.requestId);
@@ -304,7 +336,10 @@ function pushInbox_(d) {
       title: copy[0],
       body: copy[1],
       tag: "toc-request-" + order.id,
-      path: "index.html",
+      path: "index.html#service=" + encodeURIComponent(order.id),
+      scope: "client",
+      requestId: order.id,
+      alertKey: "client:" + order.id + ":" + order.status,
     };
   });
   return { notifications: notifications, checkedAt: Date.now() };

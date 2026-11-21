@@ -21,10 +21,10 @@ import {
   sound,
   poll,
   inCity,
-} from "./core.js?v=1.3.1";
-import { mapPreview, autocomplete } from "./maps.js?v=1.3.1";
-import { normalizeOrder } from "./orders.js?v=1.3.1";
-import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.1";
+} from "./core.js?v=1.3.2";
+import { mapPreview, autocomplete } from "./maps.js?v=1.3.2";
+import { normalizeOrder } from "./orders.js?v=1.3.2";
+import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.2";
 banner();
 wireDialogs();
 const sessionKey = demo ? "toc-demo-session" : "toc-session";
@@ -62,6 +62,14 @@ window.addEventListener("toc:push-state", (event) => {
   if (event.detail.role === "admin" && event.detail.enabled) {
     $("#sound-button span").textContent = "Avisos activados";
     $("#sound-button").classList.add("enabled");
+  }
+});
+window.addEventListener("toc:audio-state", () => {
+  if (!sound.enabled) {
+    $("#sound-button span").textContent = sound.pending
+      ? "Toca para oír avisos pendientes"
+      : "Activar sonido";
+    $("#sound-button").classList.remove("enabled");
   }
 });
 const statsNode = (label, value, detail, name, cls = "") => {
@@ -315,18 +323,15 @@ async function sync() {
     const newOnes = incoming.filter(
       (o) => o.status === "pending" && !ids.has(o.id),
     );
-    if (!firstLoad && newOnes.length) {
-      sound.play(
-        newOnes.length === 1
-          ? "TocToc. Nueva solicitud de domicilio. Revisa el centro de servicios."
-          : `TocToc. Tienes ${newOnes.length} nuevas solicitudes de domicilio.`,
+    for (const order of newOnes)
+      sound.alert(
+        "admin:" + order.id + ":new",
+        "TocToc. Nueva solicitud de domicilio. Revisa el centro de servicios.",
       );
+    if (!firstLoad && newOnes.length) {
       notify(
         `${newOnes.length} nueva${newOnes.length === 1 ? " solicitud" : "s solicitudes"} por aceptar.`,
       );
-    }
-    if (firstLoad && newOnes.length && sound.enabled) {
-      sound.play(`TocToc. Tienes ${newOnes.length} solicitudes por aceptar.`);
     }
     orders = incoming;
     todayStats = result.today;
@@ -355,6 +360,7 @@ function handleError(e) {
   $("#admin-error").hidden = false;
 }
 window.addEventListener("hashchange", route);
+window.addEventListener("toc:service-update", () => watcher?.refresh());
 function route() {
   if (!session) return;
   let view = location.hash.slice(1) || "inbox";

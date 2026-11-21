@@ -1,4 +1,4 @@
-import { api, el, icon } from "./core.js?v=1.3.1";
+import { api, el, icon } from "./core.js?v=1.3.2";
 
 export function mapUrl(order, city, mode = "satellite") {
   const hasPoint =

@@ -1,5 +1,26 @@
 // Shared by the page and its worker. Each deployed app gets its own database.
 globalThis.TocPwaStore = {
+  async entries(scope, prefix) {
+    const db = await this.open(scope);
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction("state"),
+          request = tx.objectStore("state").openCursor(),
+          result = [];
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          if (String(cursor.key).startsWith(prefix))
+            result.push([cursor.key, cursor.value]);
+          cursor.continue();
+        };
+        tx.oncomplete = () => resolve(result);
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+  },
   async open(scope) {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open("toc-pwa:" + scope, 1);
