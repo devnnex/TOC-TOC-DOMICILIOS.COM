@@ -7,6 +7,7 @@
 const DB_ID = "1RY7f8Xuel5-tK9e_PQhXgscinU8AQN45pge5p-f16u8";
 const TZ = "America/Bogota";
 const SESSION_HOURS = 8;
+const APP_VERSION = "1.1.0";
 const SCHEMA = {
   Requests: [
     "id",
@@ -180,7 +181,7 @@ function doGet() {
     ok: true,
     data: {
       application: "TOC TOC",
-      version: "1.0.0",
+      version: APP_VERSION,
       transport: "POST text/plain",
     },
   });
@@ -214,6 +215,7 @@ function doPost(e) {
   }
 }
 function dispatch_(action, d, session) {
+  if (action === "installationStatus") return installationStatus_();
   if (!PropertiesService.getScriptProperties().getProperty("PEPPER"))
     fail_("NOT_READY", "Primero ejecuta setup() en Apps Script.");
   if (action === "challenge") {
@@ -260,16 +262,58 @@ function dispatch_(action, d, session) {
   fail_("UNKNOWN_ACTION", "Operación desconocida.");
 }
 
+/** Estado público mínimo: nunca devuelve correos, usuarios ni el código privado. */
+function installationStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("PEPPER"))
+    return {
+      state: "needs_setup",
+      bootstrapAvailable: false,
+      version: APP_VERSION,
+    };
+  const book = book_();
+  if (
+    !Object.keys(SCHEMA).every(function (name) {
+      return !!book.getSheetByName(name);
+    })
+  ) {
+    return {
+      state: "needs_setup",
+      bootstrapAvailable: false,
+      version: APP_VERSION,
+    };
+  }
+  const users = sheet_("Users");
+  const headers = users.getRange(1, 1, 1, SCHEMA.Users.length).getValues()[0];
+  if (
+    JSON.stringify(headers) !== JSON.stringify(SCHEMA.Users) ||
+    sheet_("Cities").getLastRow() < 2
+  ) {
+    return {
+      state: "needs_setup",
+      bootstrapAvailable: false,
+      version: APP_VERSION,
+    };
+  }
+  const needsOwner = users.getLastRow() < 2;
+  return {
+    state: needsOwner ? "needs_owner" : "ready",
+    bootstrapAvailable: needsOwner && !!props.getProperty("BOOTSTRAP_TOKEN"),
+    version: APP_VERSION,
+  };
+}
+
 function bootstrap_(d) {
   return locked_(function () {
+    if (rows_("Users").length)
+      fail_(
+        "OWNER_ALREADY_EXISTS",
+        "La cuenta inicial ya fue creada. Ingresa con una cuenta registrada.",
+      );
     rateUnlocked_("bootstrap", 5, 600);
     const p = PropertiesService.getScriptProperties(),
       expected = p.getProperty("BOOTSTRAP_TOKEN");
-    if (
-      rows_("Users").length ||
-      !expected ||
-      !equal_(String(d.bootstrapToken || ""), expected)
-    )
+    if (!expected || !equal_(String(d.bootstrapToken || ""), expected))
       fail_("FORBIDDEN", "Código de instalación incorrecto o ya utilizado.");
     const email = email_(d.email);
     key_(d.passwordKey);
@@ -296,6 +340,11 @@ function login_(d) {
   const result = locked_(function () {
     const email = email_(d.email);
     key_(d.passwordKey);
+    if (!users_().length)
+      fail_(
+        "OWNER_REQUIRED",
+        "Primero debes crear la cuenta del jefe desde este panel.",
+      );
     rateUnlocked_("login:" + digest_(email), 8, 600);
     rateUnlocked_("all-logins", 100, 600);
     const user = users_().find(function (u) {

@@ -3,7 +3,7 @@ import { environment } from "./gas.mjs";
 
 // Prueba la interfaz de producción contra el Code.gs real, sin tocar el Sheet.
 export async function browserBackend(browser, errors) {
-  const server = environment();
+  const server = environment({ createOwner: false });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     locale: "es-CO",
@@ -30,6 +30,61 @@ export async function browserBackend(browser, errors) {
   const admin = await context.newPage();
   watch(admin);
   await admin.goto("http://127.0.0.1:4173/admin.html");
+  // Primera apertura: el alta aparece sin buscar ni pulsar un enlace manual.
+  await admin.locator("#setup-fields").waitFor();
+  if (
+    !(await admin.locator("#login-submit").textContent()).includes(
+      "Crear mi cuenta",
+    )
+  )
+    throw new Error("El primer acceso debe exigir crear al jefe.");
+  await admin.screenshot({
+    path: "test-results/first-owner-setup.png",
+    fullPage: true,
+  });
+  await admin.locator('#login-form [name="name"]').fill("Jefe de prueba");
+  await admin.locator('#login-form [name="email"]').fill("jefe@example.com");
+  await admin
+    .locator('#login-form [name="password"]')
+    .fill("UnaClaveSegura2026!");
+  await admin
+    .locator('#login-form [name="passwordConfirmation"]')
+    .fill("ContraseñaDistinta2026!");
+  await admin
+    .locator('#login-form [name="bootstrapToken"]')
+    .fill("codigo-invalido");
+  await admin.locator("#login-submit").click();
+  await admin
+    .locator("#login-error")
+    .filter({ hasText: "no coinciden" })
+    .waitFor();
+  if (server.context.rows_("Users").length)
+    throw new Error("No debe crearse una cuenta con contraseñas distintas.");
+  await admin
+    .locator('#login-form [name="passwordConfirmation"]')
+    .fill("UnaClaveSegura2026!");
+  await admin.locator("#login-submit").click();
+  await admin
+    .locator("#login-error")
+    .filter({ hasText: "Código de instalación incorrecto" })
+    .waitFor();
+  if (server.context.rows_("Users").length)
+    throw new Error("No debe crearse una cuenta sin un código válido.");
+  await admin
+    .locator('#login-form [name="bootstrapToken"]')
+    .fill(server.props.get("BOOTSTRAP_TOKEN"));
+  await admin.locator("#login-submit").click();
+  await admin.locator("#requests-list .empty-state").waitFor();
+  if (server.context.rows_("Users").length !== 1)
+    throw new Error("Debe crearse exactamente un jefe.");
+  await admin.locator("#logout-button").click();
+  await admin.locator("#login-form").waitFor();
+  await admin.locator("#setup-fields").waitFor({ state: "hidden" });
+  if (
+    (await admin.locator("#login-submit").textContent()).trim() !==
+    "Entrar al panel"
+  )
+    throw new Error("Con un jefe registrado debe mostrarse el ingreso normal.");
   await admin.locator("#login-form [name=email]").fill("jefe@example.com");
   await admin
     .locator("#login-form [name=password]")
@@ -110,5 +165,28 @@ export async function browserBackend(browser, errors) {
   await operator.locator("#requests-list .empty-state").waitFor(); // Ninguno por aceptar: ya se aceptó.
   if (await operator.locator("#team-nav").isVisible())
     throw new Error("El administrador no debe ver gestión de equipo.");
+  // Una implementación anterior debe mostrar cómo actualizar, sin fingir detección.
+  const oldDeployment = await context.newPage();
+  watch(oldDeployment);
+  await oldDeployment.route(endpoint, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "Access-Control-Allow-Origin": "*" },
+      body: JSON.stringify({
+        ok: false,
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Inicia sesión para continuar.",
+        },
+      }),
+    }),
+  );
+  await oldDeployment.goto("http://127.0.0.1:4173/admin.html");
+  await oldDeployment
+    .locator("#access-title")
+    .filter({ hasText: "Actualiza la conexión" })
+    .waitFor();
+  await oldDeployment.locator("#login-form").waitFor({ state: "hidden" });
   await context.close();
 }

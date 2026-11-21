@@ -39,7 +39,9 @@ let session = storageGet(sessionKey, null, sessionStorage),
   selected = null,
   firstLoad = true,
   historyOffset = 0,
-  setupMode = false;
+  setupMode = false,
+  accessReady = false,
+  accessCheck = 0;
 let resetUser = null;
 const statsNode = (label, value, detail, name, cls = "") => {
   const n = el("article", `kpi-card ${cls}`),
@@ -62,30 +64,116 @@ if (demo) {
   $("#client-link").href = "index.html?demo=1";
   $("#seed-demo").hidden = false;
 }
-$("#setup-toggle").addEventListener("click", () => {
-  setupMode = !setupMode;
+function renderAccessState(state) {
+  setupMode = state.state === "needs_owner";
+  accessReady =
+    state.state === "ready" || (setupMode && state.bootstrapAvailable === true);
+  $("#login-form").hidden = !accessReady;
+  $("#access-status").hidden = accessReady;
+  $("#login-submit").disabled = !accessReady;
   $("#setup-fields").hidden = !setupMode;
   $('#setup-fields input[name="name"]').required = setupMode;
+  $('#setup-fields input[name="passwordConfirmation"]').required = setupMode;
   $('#setup-fields input[name="bootstrapToken"]').required = setupMode;
+  $('#login-form input[name="password"]').autocomplete = setupMode
+    ? "new-password"
+    : "current-password";
+  $("#access-pill").textContent = setupMode
+    ? "CONFIGURACIÓN INICIAL OBLIGATORIA"
+    : "ESPACIO DEL EQUIPO";
+  $("#access-title").textContent = setupMode
+    ? "Primero, crea tu cuenta de jefe."
+    : "Vamos a mover la ciudad.";
   $("#login-submit").textContent = setupMode
-    ? "Crear cuenta del jefe"
+    ? "Crear mi cuenta y entrar"
     : "Entrar al panel";
-  $("#setup-toggle").textContent = setupMode
-    ? "Ya tengo una cuenta"
-    : "Estoy instalando el sistema por primera vez";
   $("#login-description").textContent = setupMode
-    ? "Crea el primer jefe con el código privado de setup()."
+    ? "Todavía no hay usuarios. Define tu correo de acceso y contraseña para comenzar. Después podrás crear administradores desde Mi equipo."
     : "Ingresa con la cuenta que te asignó tu jefe.";
-});
+}
+function accessGuide(title, description) {
+  $("#access-guide").hidden = false;
+  $("#access-guide").replaceChildren(
+    el("strong", "", title),
+    el("p", "", description),
+  );
+}
+async function checkInstallation() {
+  if (demo) return renderAccessState({ state: "ready" });
+  const check = ++accessCheck;
+  accessReady = false;
+  $("#login-submit").disabled = true;
+  $("#login-form").hidden = true;
+  $("#access-guide").hidden = true;
+  $("#access-retry").hidden = true;
+  $("#access-status").hidden = false;
+  $("#access-status").textContent = "Comprobando la instalación…";
+  $("#access-title").textContent = "Preparando tu acceso.";
+  try {
+    const state = await api("installationStatus");
+    if (check !== accessCheck) return;
+    if (
+      !state ||
+      !["needs_setup", "needs_owner", "ready"].includes(state.state)
+    )
+      throw new Error(
+        "El despliegue no devolvió un estado de instalación válido.",
+      );
+    renderAccessState(state);
+    $("#access-status").hidden = accessReady;
+    if (
+      state.state === "needs_setup" ||
+      (setupMode && !state.bootstrapAvailable)
+    ) {
+      $("#access-title").textContent = "Falta preparar tu sistema.";
+      $("#login-description").textContent =
+        "El primer acceso se habilitará cuando esté lista la instalación.";
+      $("#access-status").textContent = "Instalación pendiente";
+      accessGuide(
+        "Prepara el sistema desde tu cuenta de Google",
+        "Ejecuta setup() en el proyecto de Apps Script conectado a esta web. Conserva el código privado del registro y vuelve a comprobar. No borres las hojas existentes.",
+      );
+      $("#access-retry").hidden = false;
+    }
+  } catch (e) {
+    if (check !== accessCheck) return;
+    const previousBackend = ["UNAUTHORIZED", "UNKNOWN_ACTION"].includes(e.code);
+    $("#access-title").textContent = previousBackend
+      ? "Actualiza la conexión del panel."
+      : "Revisemos tu conexión.";
+    $("#login-description").textContent =
+      "Necesitamos comprobar la instalación antes de habilitar el acceso.";
+    $("#access-status").textContent = previousBackend
+      ? "El despliegue todavía usa una versión anterior."
+      : e.message;
+    accessGuide(
+      previousBackend
+        ? "Actualiza Apps Script una sola vez"
+        : "Vuelve a intentarlo",
+      previousBackend
+        ? "Reemplaza Code.gs por la versión actual, guarda y actualiza la implementación web a una nueva versión conservando la misma URL /exec. Al volver, este panel te pedirá crear el jefe si la hoja Users está vacía."
+        : "Comprueba tu conexión y que la URL /exec corresponda al despliegue público del proyecto. Después vuelve a comprobar.",
+    );
+    $("#access-retry").hidden = false;
+  }
+}
+$("#access-retry").addEventListener("click", checkInstallation);
 $("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (!accessReady) return;
+  const d = Object.fromEntries(new FormData(event.currentTarget));
+  if (setupMode && d.password !== d.passwordConfirmation) {
+    $("#login-error").textContent =
+      "Las contraseñas no coinciden. Escríbelas de nuevo.";
+    $("#login-error").hidden = false;
+    return;
+  }
   enableAlerts(false);
   const button = $("#login-submit");
   busy(button, true, "Verificando tu acceso…");
   $("#login-error").hidden = true;
   try {
-    const d = Object.fromEntries(new FormData(event.currentTarget)),
-      email = d.email.toLowerCase().trim(),
+    const email = d.email.toLowerCase().trim(),
       c = await api("challenge", { email }),
       key = await passwordKey(d.password, c.salt);
     const r = await api(setupMode ? "bootstrap" : "login", {
@@ -97,12 +185,19 @@ $("#login-form").addEventListener("submit", async (event) => {
     session = r;
     storageSet(sessionKey, r, sessionStorage);
     $("#login-form").reset();
+    renderAccessState({ state: "ready" });
     await enter();
   } catch (e) {
+    if (["OWNER_REQUIRED", "OWNER_ALREADY_EXISTS"].includes(e.code))
+      await checkInstallation();
     $("#login-error").textContent = e.message;
     $("#login-error").hidden = false;
   } finally {
     busy(button, false);
+    button.disabled = !accessReady;
+    button.textContent = setupMode
+      ? "Crear mi cuenta y entrar"
+      : "Entrar al panel";
   }
 });
 async function enter() {
@@ -123,6 +218,7 @@ async function enter() {
     `Acceso de administrador para ${city.name}. La ciudad se asigna desde el servidor.`;
   $("#system-status").replaceChildren(
     ...[
+      ["Tu usuario de acceso", session.user.email],
       ["Ciudad operativa", city.name],
       ["Fuente de datos", demo ? "Demostración local" : "Google Sheets"],
       [
@@ -156,6 +252,11 @@ function showLogin(message = "") {
   storageSet(sessionKey, null, sessionStorage);
   $("#admin-app").hidden = true;
   $("#login-screen").hidden = false;
+  orders = [];
+  revision = "";
+  serverDay = "";
+  firstLoad = true;
+  checkInstallation();
   if (message) {
     $("#login-error").textContent = message;
     $("#login-error").hidden = false;
@@ -865,4 +966,6 @@ if (session) {
       return enter();
     })
     .catch((e) => showLogin(e.message));
+} else {
+  checkInstallation();
 }

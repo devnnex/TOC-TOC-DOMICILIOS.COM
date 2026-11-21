@@ -12,9 +12,9 @@
     />
     <title>Equipo · TOC TOC</title>
     <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="assets/app.css" />
+    <link rel="stylesheet" href="assets/app.css?v=1.1.0" />
     <script src="config.js" defer></script>
-    <script type="module" src="assets/admin.js"></script>
+    <script type="module" src="assets/admin.js?v=1.1.0"></script>
   </head>
   <body class="admin-body">
     <div id="environment-banner" class="environment-banner" hidden></div>
@@ -45,12 +45,26 @@
           >Volver al inicio</a
         >
         <div class="login-card">
-          <span class="pill pill-orange">ESPACIO DEL EQUIPO</span>
-          <h2>Vamos a mover la ciudad.</h2>
+          <span class="pill pill-orange" id="access-pill"
+            >ESPACIO DEL EQUIPO</span
+          >
+          <h2 id="access-title">Preparando tu acceso.</h2>
           <p class="muted" id="login-description">
-            Ingresa con la cuenta que te asignó tu jefe.
+            Comprobamos si tu sistema necesita crear su primera cuenta.
           </p>
-          <form id="login-form">
+          <div id="access-status" class="access-status" role="status">
+            Comprobando la instalación…
+          </div>
+          <div id="access-guide" class="insight-box" hidden></div>
+          <button
+            type="button"
+            class="button button-secondary button-wide"
+            id="access-retry"
+            hidden
+          >
+            Volver a comprobar
+          </button>
+          <form id="login-form" hidden>
             <label
               >Correo electrónico<input
                 name="email"
@@ -76,6 +90,14 @@
                   maxlength="70"
                   placeholder="Nombre del jefe" /></label
               ><label
+                >Confirma tu contraseña<input
+                  name="passwordConfirmation"
+                  type="password"
+                  autocomplete="new-password"
+                  minlength="12"
+                  maxlength="128"
+                  placeholder="Escribe de nuevo tu contraseña" /></label
+              ><label
                 >Código de instalación<input
                   name="bootstrapToken"
                   type="password"
@@ -84,8 +106,10 @@
                   placeholder="El código del registro de setup()"
               /></label>
               <p class="field-help">
-                Este código se genera una sola vez al ejecutar setup() en Apps
-                Script. Nadie puede crear el primer jefe sin él.
+                El código está en el registro de ejecución de setup() en Apps
+                Script. Si lo perdiste, vuelve a ejecutar setup(): mientras no
+                haya usuarios, mostrará el mismo código sin borrar tus hojas ni
+                sus datos.
               </p>
             </div>
             <div
@@ -98,13 +122,12 @@
               class="button button-primary button-wide"
               type="submit"
               id="login-submit"
+              disabled
             >
               Entrar al panel
             </button>
           </form>
-          <button class="text-button setup-toggle" id="setup-toggle">
-            Estoy instalando el sistema por primera vez</button
-          ><a
+          <a
             class="button button-secondary button-wide demo-access"
             href="admin.html?demo=1"
             id="demo-access"

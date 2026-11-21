@@ -42,7 +42,11 @@ Visitar `/exec` mostrará un JSON de estado. El resto de las operaciones se ejec
 
 ## 3. Crear el primer jefe
 
-Abre `admin.html` desde HTTPS o el servidor local. Elige **Estoy instalando el sistema por primera vez**. Escribe nombre, correo de acceso, contraseña de mínimo 12 caracteres y el código del registro de `setup()`. No se necesita que ese correo esté conectado con Google: es el identificador de una cuenta privada de esta aplicación.
+Abre `admin.html` desde HTTPS o el servidor local. El panel comprueba automáticamente la instalación: si **Users no tiene cuentas**, muestra directamente **Primero, crea tu cuenta de jefe** y exige completar el alta antes de operar. No hay un enlace escondido que debas buscar. Escribe nombre, correo de acceso, contraseña de mínimo 12 caracteres, confirmación de la contraseña y el código privado del registro de `setup()`. El correo que elijas será tu usuario de acceso; no necesita estar conectado con Google.
+
+Si no conservaste el código, ejecuta de nuevo `setup()`: mientras no existan usuarios, vuelve a mostrar el mismo código y no reinicia las hojas ni los datos. Si la interfaz indica que el despliegue usa una versión anterior, reemplaza Code.gs por el actual y **actualiza la implementación web a una nueva versión** conservando /exec; guardar el archivo o hacer push a GitHub no actualiza una implementación versionada de Google.
+
+Después del alta, el mismo panel muestra automáticamente el ingreso normal. El backend impide crear un segundo jefe por la ruta inicial, incluso si dos pestañas intentan completar el alta. La comprobación pública devuelve únicamente el estado de instalación y la versión: nunca correos, contraseñas ni el código privado.
 
 El código de instalación se elimina al crear el primer jefe. Después se ingresa con correo y contraseña. No hay cuentas ni claves de ejemplo para producción. Para recuperar un jefe sin sesión, el propietario del proyecto puede emitir temporalmente un nuevo usuario de recuperación desde Apps Script o restablecer el verificador con un procedimiento controlado; no existe una puerta pública de recuperación que evite la autenticación.
 

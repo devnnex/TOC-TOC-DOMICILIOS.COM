@@ -1209,18 +1209,30 @@ dialog::backdrop {
 .login-card form > .button {
   margin-top: 24px;
 }
-.setup-toggle {
-  display: block;
-  margin: 18px auto;
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--muted);
+.login-card #setup-fields > label {
+  margin-top: 16px;
 }
 .demo-access {
   margin-top: 12px;
 }
 .login-card .form-footnote {
   margin-top: 24px;
+}
+.access-status {
+  margin-top: 24px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+#access-guide {
+  margin-bottom: 16px;
+}
+#access-retry {
+  margin-top: 16px;
 }
 /* Operación */
 .admin-layout {

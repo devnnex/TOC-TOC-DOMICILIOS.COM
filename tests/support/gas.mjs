@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { createHash, createHmac, randomUUID, pbkdf2Sync } from "node:crypto";
-function environment() {
+function environment({ createOwner = true } = {}) {
   const props = new Map(),
     cache = new Map(),
     tables = new Map(),
@@ -169,13 +169,15 @@ function environment() {
     );
   };
   const ownerKey = key("jefe@example.com");
-  const boot = call("bootstrap", {
-    email: "jefe@example.com",
-    name: "Jefe",
-    passwordKey: ownerKey,
-    bootstrapToken: props.get("BOOTSTRAP_TOKEN"),
-  });
-  assert.ok(boot.ok, boot.error?.message);
+  const boot = createOwner
+    ? call("bootstrap", {
+        email: "jefe@example.com",
+        name: "Jefe",
+        passwordKey: ownerKey,
+        bootstrapToken: props.get("BOOTSTRAP_TOKEN"),
+      })
+    : null;
+  if (boot) assert.ok(boot.ok, boot.error?.message);
   return {
     context,
     call,
@@ -184,7 +186,7 @@ function environment() {
     cache,
     tables,
     triggers,
-    owner: boot.data.token,
+    owner: boot?.data.token || "",
     ownerKey,
   };
 }

@@ -14,7 +14,7 @@ for (const name of ["index.html", "admin.html"]) {
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   if (new Set(ids).size !== ids.length)
     throw new Error(`IDs repetidos en ${name}`);
-  for (const m of html.matchAll(/(?:src|href)="([^"#?]+)(?:#[^"]*)?"/g)) {
+  for (const m of html.matchAll(/(?:src|href)="([^"#?]+)(?:[?#][^"]*)?"/g)) {
     const path = m[1];
     if (/^(https?:|mailto:|tel:)/.test(path)) continue;
     await stat(path);

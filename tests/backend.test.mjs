@@ -2,6 +2,54 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { environment } from "./support/gas.mjs";
+test("la instalación exige crear el primer jefe y solo publica un estado sin credenciales", () => {
+  const e = environment({ createOwner: false });
+  const bootstrapToken = e.props.get("BOOTSTRAP_TOKEN");
+  const status = e.call("installationStatus");
+  assert.equal(status.data.state, "needs_owner");
+  assert.equal(status.data.bootstrapAvailable, true);
+  assert.equal(JSON.stringify(status).includes(bootstrapToken), false);
+  assert.equal(
+    e.call("login", { email: "jefe@example.com", passwordKey: e.ownerKey })
+      .error.code,
+    "OWNER_REQUIRED",
+  );
+  assert.equal(
+    e.call("bootstrap", {
+      email: "jefe@example.com",
+      passwordKey: e.ownerKey,
+      name: "Jefe",
+      bootstrapToken: "incorrecto",
+    }).error.code,
+    "FORBIDDEN",
+  );
+  assert.equal(e.context.rows_("Users").length, 0);
+  const created = e.call("bootstrap", {
+    email: "jefe@example.com",
+    passwordKey: e.ownerKey,
+    name: "Jefe",
+    bootstrapToken,
+  });
+  assert.ok(created.ok);
+  const ready = e.call("installationStatus");
+  assert.equal(ready.data.state, "ready");
+  assert.equal(ready.data.bootstrapAvailable, false);
+  assert.equal(JSON.stringify(ready).includes("jefe@example.com"), false);
+  assert.equal(
+    e.call("bootstrap", { bootstrapToken }).error.code,
+    "OWNER_ALREADY_EXISTS",
+  );
+  assert.equal(e.context.rows_("Users").length, 1);
+});
+test("el estado de instalación identifica setup pendiente y el código inicial faltante", () => {
+  const e = environment({ createOwner: false });
+  e.props.delete("BOOTSTRAP_TOKEN");
+  assert.equal(e.call("installationStatus").data.bootstrapAvailable, false);
+  e.context.setup();
+  assert.equal(e.call("installationStatus").data.bootstrapAvailable, true);
+  e.props.delete("PEPPER");
+  assert.equal(e.call("installationStatus").data.state, "needs_setup");
+});
 test("el login agenda mantenimiento una sola vez sin esperar la limpieza", () => {
   const e = environment();
   e.call("login", { email: "jefe@example.com", passwordKey: e.ownerKey });
@@ -49,7 +97,7 @@ test("setup es idempotente y el bootstrap solo puede usarse una vez", () => {
   assert.equal(e.props.has("BOOTSTRAP_TOKEN"), false);
   assert.equal(
     e.call("bootstrap", { bootstrapToken: "otro" }).error.code,
-    "FORBIDDEN",
+    "OWNER_ALREADY_EXISTS",
   );
 });
 test("solicitud, aceptación, seguimiento privado y estadísticas sin doble asignación", () => {

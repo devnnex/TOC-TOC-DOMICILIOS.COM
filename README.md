@@ -29,6 +29,8 @@ El cliente envía una solicitud y conserva un identificador y un token de seguim
 
 Los jefes crean administradores de su ciudad, desactivan accesos y restablecen contraseñas. Los administradores deben cambiar su contraseña inicial antes de operar. No existe una contraseña predeterminada en el repositorio. Las cuentas de jefe adicionales se gestionan por el propietario del Sheet, no desde una ruta pública.
 
+Al abrir admin.html sin sesión, el sistema verifica el estado de instalación. Si Users está vacía, exige crear al primer jefe y muestra directamente el formulario con código privado y confirmación de contraseña. Cuando ya hay una cuenta, presenta el ingreso normal. El estado público no expone datos de usuarios. Si el backend desplegado es anterior a la versión 1.1.0, la interfaz explica cómo actualizarlo en lugar de interpretar una falta de autenticación como si fuera una cuenta existente.
+
 ## Rendimiento y límites
 
 La respuesta visual al clic es local. La confirmación del servidor depende de Google. Panel: sondeo cada 4 segundos; cliente: cada 5 segundos, más latencia. No hay WebSockets ni garantía de entrega instantánea. Al ocultar la pestaña se reduce el sondeo a 30 segundos; los errores aplican espera creciente. Al regresar, se consulta de nuevo. Las respuestas sin cambios evitan releer solicitudes; los mapas se cargan al desplegarlos.
