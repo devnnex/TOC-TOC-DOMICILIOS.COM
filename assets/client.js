@@ -21,9 +21,9 @@ import {
   inCity,
   time,
   distance,
-} from "./core.js?v=1.3.4";
-import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.4";
-import { initPwa, syncPush, restoreDeviceTracking } from "./pwa.js?v=1.3.4";
+} from "./core.js?v=1.3.5";
+import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.5";
+import { initPwa, syncPush, restoreDeviceTracking } from "./pwa.js?v=1.3.5";
 banner();
 wireDialogs();
 const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",

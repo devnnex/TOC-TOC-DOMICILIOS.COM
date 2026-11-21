@@ -120,7 +120,7 @@ export async function passwordKey(password, salt) {
 let demoModule;
 export async function api(action, data = {}, session = "") {
   if (demo) {
-    demoModule ||= import("./demo.js?v=1.3.4");
+    demoModule ||= import("./demo.js?v=1.3.5");
     return (await demoModule).request(action, data, session);
   }
   if (!config.apiUrl)
@@ -287,7 +287,7 @@ export function poll(fn, interval = 5000) {
     },
   };
 }
-export { sound } from "./audio.js?v=1.3.4";
+export { sound } from "./audio.js?v=1.3.5";
 export function distance(a, b) {
   const r = Math.PI / 180,
     dLat = (b.lat - a.lat) * r,

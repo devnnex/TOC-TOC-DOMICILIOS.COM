@@ -21,10 +21,10 @@ import {
   sound,
   poll,
   inCity,
-} from "./core.js?v=1.3.4";
-import { mapPreview, autocomplete } from "./maps.js?v=1.3.4";
-import { normalizeOrder } from "./orders.js?v=1.3.4";
-import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.4";
+} from "./core.js?v=1.3.5";
+import { mapPreview, autocomplete } from "./maps.js?v=1.3.5";
+import { normalizeOrder } from "./orders.js?v=1.3.5";
+import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.5";
 banner();
 wireDialogs();
 const sessionKey = demo ? "toc-demo-session" : "toc-session";

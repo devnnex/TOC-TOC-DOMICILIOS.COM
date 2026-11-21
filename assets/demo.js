@@ -1,5 +1,5 @@
 // Aislado de producción. Solo se importa con ?demo=1 y nunca llama a Apps Script.
-import { storageGet, storageSet, token, config } from "./core.js?v=1.3.4";
+import { storageGet, storageSet, token, config } from "./core.js?v=1.3.5";
 const KEY = "toc-demo-db-v1";
 const today = () =>
   new Intl.DateTimeFormat("en-CA", {

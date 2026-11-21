@@ -271,7 +271,7 @@ try {
   );
   await another.bringToFront();
   await another.evaluate(async () => {
-    const { sound } = await import("./assets/core.js?v=1.3.4");
+    const { sound } = await import("./assets/core.js?v=1.3.5");
     await sound.enable();
     await sound.context.suspend();
     window.resumeAudio = sound.context.resume.bind(sound.context);
@@ -461,7 +461,7 @@ try {
     });
     await page.goto(base + "index.html");
     const ready = await page.evaluate(async () => {
-      const pwa = await import("./assets/pwa.js?v=1.3.4");
+      const pwa = await import("./assets/pwa.js?v=1.3.5");
       return pwa.enablePush();
     });
     assert.equal(ready, false);
