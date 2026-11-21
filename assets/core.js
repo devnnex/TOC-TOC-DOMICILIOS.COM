@@ -259,13 +259,15 @@ export function poll(fn, interval = 5000) {
           run,
           document.hidden
             ? 30000
-            : requested && !failures
-              ? 0
-              : Math.max(
-                  250,
-                  Math.min(interval * 2 ** failures, 30000) -
-                    (Date.now() - started),
-                ),
+            : failures
+              ? Math.min(interval * 2 ** failures, 30000)
+              : requested
+                ? 0
+                : Math.max(
+                    250,
+                    Math.min(interval * 2 ** failures, 30000) -
+                      (Date.now() - started),
+                  ),
         );
     }
   };

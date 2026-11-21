@@ -89,3 +89,16 @@ test("sondeo: fallos y pestaña oculta conservan espera y recuperación al volve
   assert.equal(calls, 3);
   p.stop();
 });
+test("sondeo: una respuesta lenta fallida conserva todo el tiempo de reintento", async () => {
+  const h = harness();
+  let fail;
+  const p = h.poll(
+    () => new Promise((resolve, reject) => (fail = reject)),
+    2000,
+  );
+  await h.advance(10000);
+  fail(Error("timeout"));
+  await h.advance(0);
+  assert.equal([...h.timers.values()][0].at, 14000);
+  p.stop();
+});
