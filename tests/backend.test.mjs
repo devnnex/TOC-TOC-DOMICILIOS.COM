@@ -215,7 +215,7 @@ test("sesión revocada, contraseña incorrecta y aislamiento de otra ciudad", ()
   assert.ok(e.call("logout", {}, e.owner).ok);
   assert.equal(e.call("me", {}, e.owner).error.code, "UNAUTHORIZED");
 });
-test("mantenimiento archiva, retiene estadísticas y purga datos personales a 90 días", () => {
+test("mantenimiento archiva y conserva solicitudes, auditoría y estadísticas antiguas", () => {
   const e = environment(),
     p = payload();
   e.call("createRequest", p);
@@ -239,8 +239,66 @@ test("mantenimiento archiva, retiene estadísticas y purga datos personales a 90
   const old = e.context.rows_("Archive")[0];
   old.createdAt = new Date(Date.now() - 91 * 86400000).toISOString();
   e.context.write_("Archive", old);
+  const oldAudit = e.context.rows_("Audit")[0];
+  oldAudit.createdAt = new Date(Date.now() - 365 * 86400000).toISOString();
+  e.context.write_("Audit", oldAudit);
+  const auditCount = e.tables.get("Audit").getLastRow();
   e.context.setSystem_("maintenanceDay", "2000-01-01");
   e.context.dailyMaintenance();
-  assert.equal(e.tables.get("Archive").getLastRow(), 1);
-  assert.equal(e.call("trackRequest", p).error.code, "NOT_FOUND");
+  assert.equal(e.tables.get("Archive").getLastRow(), 2);
+  assert.equal(e.call("trackRequest", p).data.status, "completed");
+  assert.equal(e.call("trackRequest", p).data.address, p.address);
+  assert.equal(e.tables.get("Audit").getLastRow(), auditCount);
+  const historic = e.call(
+    "history",
+    { from: old.createdAt.slice(0, 10), to: old.createdAt.slice(0, 10) },
+    e.owner,
+  );
+  assert.equal(historic.data.orders.length, 1);
+});
+test("el mantenimiento elimina solo sesiones vencidas y conserva servicios activos antiguos", () => {
+  const e = environment(),
+    p = payload();
+  e.call("createRequest", p);
+  const order = e.context.rows_("Requests")[0];
+  order.status = "accepted";
+  order.createdAt = new Date(Date.now() - 365 * 86400000).toISOString();
+  e.context.write_("Requests", order);
+  e.context.append_("Sessions", {
+    tokenHash: "expired-test",
+    userId: "old",
+    createdAt: order.createdAt,
+    expiresAt: new Date(Date.now() - 1000).toISOString(),
+  });
+  e.cache.set("session:expired-test", "stale");
+  e.context.dailyMaintenance();
+  assert.equal(e.context.rows_("Requests")[0].id, p.id);
+  assert.equal(e.context.rows_("Requests")[0].status, "accepted");
+  assert.equal(
+    e.context.rows_("Sessions").some((s) => s.tokenHash === "expired-test"),
+    false,
+  );
+  assert.equal(e.cache.has("session:expired-test"), false);
+  assert.ok(e.call("me", {}, e.owner).ok);
+});
+test("un archivo incompleto nunca elimina el original de la hoja operativa", () => {
+  const e = environment(),
+    p = payload();
+  e.call("createRequest", p);
+  const order = e.context.rows_("Requests")[0];
+  order.status = "completed";
+  order.createdAt = new Date(Date.now() - 365 * 86400000).toISOString();
+  e.context.write_("Requests", order);
+  const append = e.context.appendMany_;
+  e.context.appendMany_ = () => {}; // Simula una copia que no llegó a persistirse.
+  assert.throws(
+    () => e.context.dailyMaintenance(),
+    /originales se conservaron/,
+  );
+  assert.equal(e.context.rows_("Requests")[0].id, p.id);
+  assert.equal(e.context.rows_("Archive").length, 0);
+  e.context.appendMany_ = append;
+  e.context.dailyMaintenance();
+  assert.equal(e.context.rows_("Requests").length, 0);
+  assert.equal(e.context.rows_("Archive")[0].id, p.id);
 });

@@ -917,14 +917,39 @@ function dailyMaintenance() {
     const move = active.filter(function (o) {
       return (
         ["completed", "cancelled"].includes(o.status) &&
-        timestamp - new Date(o.createdAt).getTime() > 30 * 86400000 &&
-        timestamp - new Date(o.createdAt).getTime() <= 90 * 86400000
+        timestamp - new Date(o.createdAt).getTime() > 30 * 86400000
       );
     });
     const fresh = move.filter(function (o) {
       return !archiveIds[o.id];
     });
     if (fresh.length) appendMany_("Archive", fresh);
+    // Solo se retiran de la hoja operativa después de comprobar la copia completa.
+    // El historial y la auditoría se conservan sin caducidad automática.
+    if (move.length) {
+      SpreadsheetApp.flush();
+      const savedById = {};
+      rows_("Archive").forEach(function (o) {
+        savedById[o.id] = o;
+      });
+      const verified = move.every(function (o) {
+        const saved = savedById[o.id];
+        return (
+          saved &&
+          SCHEMA.Requests.every(function (key) {
+            return (
+              String(saved[key] == null ? "" : saved[key]) ===
+              String(o[key] == null ? "" : o[key])
+            );
+          })
+        );
+      });
+      if (!verified)
+        fail_(
+          "ARCHIVE_VERIFY_FAILED",
+          "No se pudo verificar el archivo. Las solicitudes originales se conservaron.",
+        );
+    }
     const removeIds = {};
     move.forEach(function (o) {
       removeIds[o.id] = true;
@@ -932,16 +957,7 @@ function dailyMaintenance() {
     deleteRows_(
       "Requests",
       active.filter(function (o) {
-        return (
-          removeIds[o.id] ||
-          timestamp - new Date(o.createdAt).getTime() > 90 * 86400000
-        );
-      }),
-    );
-    deleteRows_(
-      "Archive",
-      archived.filter(function (o) {
-        return timestamp - new Date(o.createdAt).getTime() > 90 * 86400000;
+        return !!removeIds[o.id];
       }),
     );
     rows_("Sessions")
@@ -955,12 +971,6 @@ function dailyMaintenance() {
       "Sessions",
       rows_("Sessions").filter(function (s) {
         return new Date(s.expiresAt).getTime() <= timestamp;
-      }),
-    );
-    deleteRows_(
-      "Audit",
-      rows_("Audit").filter(function (s) {
-        return timestamp - new Date(s.createdAt).getTime() > 90 * 86400000;
       }),
     );
     reconcileStats_();

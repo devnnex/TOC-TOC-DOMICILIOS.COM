@@ -72,6 +72,7 @@ function environment() {
   const context = vm.createContext({
     console: { log() {}, error() {} },
     SpreadsheetApp: {
+      flush() {},
       openById: () => ({
         getSheetByName: (n) => tables.get(n),
         insertSheet: (n) => {
