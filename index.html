@@ -15,9 +15,14 @@
     />
     <title>TOC TOC · Activa tu domicilio</title>
     <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="assets/client.css?v=1.2.0" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="assets/icons/app-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="TOC TOC" />
+    <link rel="stylesheet" href="assets/pwa.css?v=1.3.0" />
+    <link rel="stylesheet" href="assets/client.css?v=1.3.0" />
     <script src="config.js" defer></script>
-    <script type="module" src="assets/client.js?v=1.2.0"></script>
+    <script type="module" src="assets/client.js?v=1.3.0"></script>
   </head>
   <body class="launchpad">
     <div id="environment-banner" class="environment-banner" hidden></div>
@@ -27,10 +32,22 @@
           >toc<span class="brand-accent">toc</span
           ><small>DOMICILIOS</small></span
         ></a
-      ><a class="team-access" href="admin.html" data-admin-link
-        ><svg class="icon"><use href="assets/icons.svg#shield" /></svg
-        ><span>Equipo</span></a
       >
+      <div class="pwa-header-tools">
+        <button
+          class="app-tool"
+          data-install-app
+          type="button"
+          hidden
+          aria-label="Instalar TOC TOC"
+        >
+          <svg class="icon"><use href="assets/icons.svg#grid" /></svg
+          ><span>Instalar app</span></button
+        ><a class="team-access" href="admin.html" data-admin-link
+          ><svg class="icon"><use href="assets/icons.svg#shield" /></svg
+          ><span>Equipo</span></a
+        >
+      </div>
     </header>
     <main class="launch-stage">
       <div class="launch-city">
@@ -42,7 +59,7 @@
         <span class="speed-stroke stroke-one"></span
         ><span class="speed-stroke stroke-two"></span
         ><img
-          src="assets/courier.webp"
+          src="assets/courier-cutout.webp"
           width="850"
           height="850"
           alt="Domiciliario con casco y chaqueta naranja en una moto negra, sin caja"
@@ -77,6 +94,10 @@
       <span>Un pendiente menos.</span
       ><span>TOC TOC · <span id="year">2026</span></span>
     </footer>
+    <p class="offline-notice" data-offline-status hidden></p>
+    <button class="app-update" data-update-app hidden>
+      Hay mejoras listas · Actualizar
+    </button>
 
     <dialog
       id="request-dialog"
@@ -310,11 +331,17 @@
         <div class="keep-open" id="keep-open">
           <svg class="icon"><use href="assets/icons.svg#sound" /></svg>
           <div>
-            <strong>Quédate en esta página</strong>
-            <p>
-              Te avisamos con sonido y voz cuando acepten. Bloquear el teléfono
-              o cambiar de aplicación puede silenciar las alertas.
+            <strong id="keep-open-title"
+              >Quédate aquí o activa los avisos</strong
+            >
+            <p id="keep-open-description">
+              Con esta pantalla abierta oirás sonido y voz. Activa los avisos
+              para recibir la confirmación al salir de la página.
             </p>
+            <button class="app-tool" data-enable-push type="button">
+              Activar avisos al salir
+            </button>
+            <p class="app-message" data-push-status></p>
           </div>
         </div>
         <details class="tracking-location" id="tracking-location">
