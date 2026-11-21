@@ -14,7 +14,7 @@ export async function browserBackend(browser, errors) {
       contentType: "text/javascript",
       body: fs
         .readFileSync("config.js", "utf8")
-        .replace(/apiUrl:\s*["']{2}/, `apiUrl: "${endpoint}"`),
+        .replace(/apiUrl:\s*"[^"]*"/, `apiUrl: "${endpoint}"`),
     }),
   );
   await context.route(endpoint, (route) => {

@@ -162,6 +162,10 @@ import { browserBackend } from "./support/browser-backend.mjs";
   // La interfaz de producción debe informar que no está conectada, sin enviar un éxito ficticio.
   const prod = await context.newPage();
   watch(prod);
+  await prod.route("**/config.js", (route) => route.fulfill({
+    contentType: "text/javascript",
+    body: fs.readFileSync("config.js", "utf8").replace(/apiUrl:\s*"[^"]*"/, 'apiUrl: ""'),
+  }));
   await prod.goto("http://127.0.0.1:4173/index.html");
   await prod
     .locator("#environment-banner")
