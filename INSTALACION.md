@@ -4,7 +4,7 @@
 
 Abre el Sheet `1RY7f8Xuel5-tK9e_PQhXgscinU8AQN45pge5p-f16u8` con una cuenta que pueda editarlo. En **Extensiones → Apps Script**, reemplaza el contenido del archivo de código por todo [Code.gs](Code.gs). El nombre del archivo puede ser `Code` o `code`: las funciones son las mismas.
 
-En configuración del proyecto, elige la zona horaria **America/Bogota**, habilita mostrar `appsscript.json` y pega [appsscript.json](appsscript.json). Guarda y ejecuta **`setup()`**. Autoriza los permisos solicitados de Sheets y creación del disparador diario. El ID del Sheet ya está incluido.
+En configuración del proyecto, elige la zona horaria **America/Bogota**, habilita mostrar `appsscript.json` y pega [appsscript.json](appsscript.json). Guarda y ejecuta **`setup()`**. Autoriza los permisos de Sheets, disparadores y conexiones externas para enviar avisos. El ID del Sheet ya está incluido.
 
 Se crearán estas hojas y columnas sin borrar otras hojas del documento:
 
@@ -18,6 +18,8 @@ Se crearán estas hojas y columnas sin borrar otras hojas del documento:
 | Cities | Ciudad, centro y zona de operación |
 | Audit | Registro de acciones por usuario e identificador |
 | System | Versión y fechas de mantenimiento |
+| PushSubscriptions | Dispositivos autorizados y permisos de avisos por cuenta o servicio |
+| PushEvents | Cola técnica de entrega y reintentos de avisos |
 
 El registro de ejecución mostrará un **código privado de instalación**. Consérvalo temporalmente: se usará para crear el primer jefe. No lo pegues en GitHub, en `config.js`, ni en un chat público. `setup()` se puede repetir; no reinicia datos. Si detecta columnas incompatibles, se detiene para evitar sobrescribir información.
 
@@ -93,8 +95,28 @@ No se implementan pagos, tarifas automáticas, seguimiento GPS del domiciliario 
 
 ## Mantenimiento y solución de problemas
 
+### Avisos fuera de la página y aplicación instalada
+
+**Actualizar una instalación existente a 1.3:** copia **todo** [Code.gs](Code.gs), incluido su bloque final de firma, y [appsscript.json](appsscript.json). Ejecuta `setup()` de nuevo y autoriza el permiso adicional de conexiones externas. Conserva las hojas y sus datos. En **Implementar → Gestionar implementaciones → Editar → Nueva versión**, actualiza la aplicación web existente y conserva su misma URL `/exec`. Un push a GitHub actualiza la web; no actualiza el proyecto de Google.
+
+1. Ingresa como jefe y pulsa **Activar avisos**. También está en **Configuración → Activar avisos al salir**. Acepta el permiso del navegador. La primera activación genera las claves con WebCrypto y reserva la privada en Script Properties, solo mediante una cuenta de jefe autenticada. No hay que pegar ninguna clave en el código público.
+2. Cada administrador activa los avisos en su propio dispositivo, después de cambiar su contraseña inicial. El permiso se limita a los servicios de su ciudad y sigue funcionando al vencer la sesión de ocho horas; abrir datos del panel sigue exigiendo iniciar sesión. Cerrar sesión desactiva los avisos de esa cuenta en ese dispositivo. Desactivar la cuenta bloquea sus entregas.
+3. El cliente, después de enviar, pulsa **Activar avisos al salir** en su seguimiento. Solo recibe novedades de su servicio. Si ya lo aceptaron antes de activar, se recupera el estado actual. No se difunden domicilios ni teléfonos en la pantalla bloqueada.
+4. Usa **Probar un aviso** en Configuración y luego prueba una solicitud y su aceptación con las páginas cerradas, en dos dispositivos reales. No envíes solicitudes ficticias al negocio durante una operación activa.
+5. **Instalar app** añade la experiencia a la pantalla de inicio cuando el navegador lo permite. En iPhone/iPad, añade la página a inicio desde Compartir y abre esa aplicación para habilitar los avisos. Cliente y equipo tienen accesos instalables independientes.
+
+Los avisos usan Web Push real con VAPID y un service worker, no sondeos en una pestaña oculta. El servidor envía una señal sin datos personales; el worker consulta una bandeja con permiso limitado y muestra el estado. La entrega se solicita por separado de la respuesta del servicio para no bloquear la confirmación. `setup()` crea `deliverPushQueue` cada minuto como respaldo y para reintentos, además de `dailyMaintenance`. Un error temporal aplica hasta seis intentos con espera creciente; un destino caducado se desactiva. Revisar `PushEvents.state` y `lastError` permite diagnosticar sin registrar secretos.
+
+El permiso de avisos del equipo vence en un año y el del cliente en 30 días; al volver a la página se renueva si está próximo a vencer. Las suscripciones y destinos permanecen privados en Sheets. Solo se permiten proveedores conocidos de Chrome/Firefox/Apple/Windows mediante HTTPS; no se aceptan destinos arbitrarios. El límite de UrlFetch, ejecuciones y disparadores de Apps Script también aplica: no hay garantía de latencia constante ni de entrega ilimitada.
+
+La app puede recibir avisos cerrada o en reposo si el navegador y el sistema permiten despertar el servicio. **No puede garantizar entrega si el equipo está apagado, sin conexión, con notificaciones bloqueadas o el navegador detenido por el sistema.** Los modos de concentración y ahorro de batería pueden retrasar o silenciar avisos. La voz funciona dentro de la página tras una interacción; fuera de ella el sonido lo controla el dispositivo. El inicio se puede abrir sin conexión después de cargarlo una vez, pero solicitar o actualizar servicios requiere conexión y confirmación del servidor. La caché del worker no almacena respuestas privadas de la API.
+
+Referencias: [Web Push en iPhone/iPad](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/), [protocolo Web Push](https://www.rfc-editor.org/rfc/rfc8030.html), [identificación VAPID](https://www.rfc-editor.org/rfc/rfc8292.html).
+
+### Diagnóstico
+
 - **No conecta o devuelve HTML:** revisa `/exec`, acceso Cualquier persona, versión implementada y permisos del propietario. No reemplaces fetch por `no-cors`.
-- **No suena:** pulsa el botón de audio; comprueba volumen, permisos de sonido y voces disponibles. Bloquear el teléfono o suspender la pestaña puede impedir avisos. La interfaz sigue mostrando el estado.
+- **No suena:** pulsa el botón de audio; comprueba volumen, permisos de sonido y voces disponibles. Para avisos fuera de la página, sigue la activación anterior y comprueba los permisos y los modos de silencio del dispositivo.
 - **No hay GPS:** usa HTTPS, activa ubicación y permisos del navegador, o escribe manualmente.
 - **Mapa vacío:** revisa conexión, bloqueadores y que el navegador permita cargar los iframes de Google. Si Street View no tiene imágenes del lugar, vuelve a Mapa o Satélite. No necesitas una clave.
 - **No aparece el nombre de la calle:** actualiza Code.gs y la implementación a la versión 1.2.0 o posterior; revisa las cuotas de Maps. Mientras tanto, puedes confirmar el GPS o escribir la dirección y una referencia.

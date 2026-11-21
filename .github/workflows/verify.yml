@@ -13,5 +13,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:push
+      - run: git diff --exit-code -- Code.gs vendor
       - run: npm run check
       - run: npm test

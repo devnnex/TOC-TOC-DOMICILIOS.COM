@@ -21,9 +21,10 @@ import {
   sound,
   poll,
   inCity,
-} from "./core.js?v=1.2.0";
-import { mapPreview, autocomplete } from "./maps.js?v=1.2.0";
-import { normalizeOrder } from "./orders.js?v=1.2.0";
+} from "./core.js?v=1.3.0";
+import { mapPreview, autocomplete } from "./maps.js?v=1.3.0";
+import { normalizeOrder } from "./orders.js?v=1.3.0";
+import { initPwa, enablePush, syncPush, forgetPush } from "./pwa.js?v=1.3.0";
 banner();
 wireDialogs();
 const sessionKey = demo ? "toc-demo-session" : "toc-session";
@@ -44,6 +45,24 @@ let session = storageGet(sessionKey, null, sessionStorage),
   accessReady = false,
   accessCheck = 0;
 let resetUser = null;
+initPwa({
+  role: "admin",
+  target: () =>
+    session?.user
+      ? {
+          id: session.user.id,
+          userId: session.user.id,
+          role: session.user.role,
+        }
+      : null,
+  session: () => session?.token || "",
+});
+window.addEventListener("toc:push-state", (event) => {
+  if (event.detail.role === "admin" && event.detail.enabled) {
+    $("#sound-button span").textContent = "Avisos activados";
+    $("#sound-button").classList.add("enabled");
+  }
+});
 const statsNode = (label, value, detail, name, cls = "") => {
   const n = el("article", `kpi-card ${cls}`),
     head = el("div", "kpi-head");
@@ -221,13 +240,10 @@ async function enter() {
     ...[
       ["Tu usuario de acceso", session.user.email],
       ["Ciudad operativa", city.name],
-      ["Fuente de datos", demo ? "Demostración local" : "Google Sheets"],
-      [
-        "Actualización del panel",
-        `Cada ${config.adminPollMs / 1000} segundos, más el tiempo de respuesta de Google`,
-      ],
+      ["Estado", demo ? "Demostración" : "Conectado"],
+      ["Servicios", "Se actualizan automáticamente"],
       ["Sesión válida hasta", time(session.expiresAt)],
-      ["Google Maps", "Mapa y búsqueda integrados · sin clave de navegador"],
+      ["Ubicación", "Disponible en cada servicio"],
     ].map(([k, v]) => {
       const n = el("div", "detail-row");
       n.append(el("span", "", k), el("strong", "", v));
@@ -243,6 +259,7 @@ async function enter() {
   if (!session.user.mustChangePassword)
     watcher = poll(sync, config.adminPollMs);
   route();
+  syncPush();
 }
 function showLogin(message = "") {
   watcher?.stop();
@@ -264,6 +281,7 @@ $("#logout-button").addEventListener("click", async () => {
   const button = $("#logout-button");
   busy(button, true, "Cerrando sesión…");
   try {
+    await forgetPush();
     await api("logout", {}, session.token);
     showLogin();
   } catch (e) {
@@ -656,20 +674,30 @@ $("#action-form").addEventListener("submit", async (event) => {
     busy(b, false);
   }
 });
-async function enableAlerts(test = true) {
+async function enableAlerts(test = true, outside = true) {
+  // Request permission during the click, before audio or network awaits.
+  const pushReady = test && outside ? enablePush() : null;
   const on = await sound.enable();
   $("#sound-button span").textContent = on
     ? "Alertas activadas"
-    : "Activar alertas";
+    : "Activar avisos";
   $("#sound-button").classList.toggle("enabled", on);
   if (on && test)
     sound.play(
       "TOC TOC. Sonido y voz activados. Estamos listos para recibir nuevos servicios.",
     );
   if (!on) notify("Revisa los permisos de audio de tu navegador.");
+  if (test && outside) {
+    const ready = await pushReady;
+    $("#sound-button span").textContent = ready
+      ? "Avisos activados"
+      : on
+        ? "Sonido en página"
+        : "Activar avisos";
+  }
 }
 $("#sound-button").addEventListener("click", () => enableAlerts());
-$("#test-sound").addEventListener("click", () => enableAlerts());
+$("#test-sound").addEventListener("click", () => enableAlerts(true, false));
 let statsLoad = 0;
 async function loadStats() {
   const load = ++statsLoad;

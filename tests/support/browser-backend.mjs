@@ -6,6 +6,7 @@ import { stubMapFrames } from "./map-frames.mjs";
 export async function browserBackend(browser, errors) {
   const server = environment({ createOwner: false });
   const context = await browser.newContext({
+    serviceWorkers: "block",
     viewport: { width: 1280, height: 900 },
     locale: "es-CO",
     permissions: ["geolocation"],

@@ -1,6 +1,6 @@
 # TOC TOC · Domicilios
 
-Landing para clientes, panel operativo privado y backend de Google Sheets. HTML, CSS y JavaScript nativos; sin frameworks, paquetes de ejecución ni proceso de compilación. La ilustración usa una moto negra, casco con visor y estilo juvenil, sin caja.
+Landing instalable para clientes, panel operativo privado y backend de Google Sheets. HTML, CSS y JavaScript nativos; el navegador no necesita frameworks ni compilación. La ilustración usa una moto negra, casco con visor y estilo juvenil, sin caja y con fondo transparente.
 
 - `index.html`: inicio con logo, moto y botón circular de activación inspirado en Ben 10. Al pulsarlo pide GPS y abre la confirmación con dirección y mapa de Google; conserva alternativas manuales, seguimiento, animaciones y voz.
 - `admin.html`: servicios, asignación de domiciliario y tarifa, mapa desplegable, Street View, búsqueda de direcciones, historial, estadísticas, administradores y contraseñas.
@@ -25,6 +25,8 @@ Abre `http://127.0.0.1:4173/index.html?demo=1` y `http://127.0.0.1:4173/admin.ht
 
 ## Operación
 
+La versión 1.3 incluye instalación independiente para cliente y equipo, iconos adaptables, inicio sin conexión y avisos Web Push. Para activarlos hay que actualizar **Code.gs y appsscript.json**, ejecutar `setup()` y actualizar la implementación existente; después el jefe pulsa **Activar avisos** y cada dispositivo concede permiso. El código completo de `Code.gs` ya contiene la firma necesaria; no requiere copiar módulos adicionales ni abrir otra cuenta. Ver [instalación y avisos](INSTALACION.md#avisos-fuera-de-la-página-y-aplicación-instalada).
+
 El cliente envía una solicitud y conserva un identificador y un token de seguimiento aleatorio. El administrador la acepta asignando nombre, celular y tarifa. El servidor verifica permisos, ciudad, estado y versión bajo un bloqueo antes de guardar. El siguiente sondeo del cliente muestra la nueva animación e intenta reproducir sonido y voz.
 
 El cliente pulsa el botón circular, autoriza el GPS y confirma el lugar en un mapa HTML de Google dentro de la página. El servicio `Maps.newGeocoder()` de Apps Script obtiene la dirección a partir del GPS; el punto enviado sigue siendo el original del dispositivo, aunque la dirección de Google corresponda a una calle cercana. El cliente y el administrador reciben las mismas coordenadas, dirección, precisión y fecha de ubicación. Un margen GPS de 124 metros no equivale a una puerta exacta: se muestra el margen y se permite mejorar la posición, buscar otra dirección o añadir una referencia. Explorar el mapa incrustado no cambia el punto compartido. No se carga el SDK de Maps en el inicio ni se exige clave de navegador.
@@ -45,7 +47,7 @@ El panel normaliza teléfonos numéricos que pueda devolver Sheets y construye l
 
 Sheets/Apps Script tiene cuotas y límites de concurrencia. Es apropiado para una operación local de volumen moderado, no para prometer latencia de milisegundos ni escala ilimitada. Hay un límite de 10.000 solicitudes en la hoja operativa y límites de frecuencia orientativos en caché. La caché puede ser desalojada por Google; no equivale a protección perimetral contra ataques. Para una operación pública de alto tráfico hará falta un backend con controles de red y un transporte de eventos.
 
-El mantenimiento diario conserva los datos del negocio: mueve servicios cerrados con más de 30 días de Requests a Archive, verifica la copia completa antes de retirar el original de la hoja operativa y mantiene todo el historial sin eliminación automática por antigüedad. Conserva usuarios, auditoría y estadísticas; solo elimina sesiones de acceso vencidas y renueva caché temporal. Reconcilia las estadísticas recientes sin eliminar agregados históricos. Los pendientes de más de una hora se cancelan con un motivo registrado y se conservan. La comprobación al iniciar sesión agenda el mantenimiento en segundo plano si falta y omite trabajo cuando ya se ejecutó ese día. No edites filas manualmente durante la operación; los IDs, versiones y contadores los administra el backend.
+El mantenimiento diario conserva los datos del negocio: mueve servicios cerrados con más de 30 días de Requests a Archive, verifica la copia completa antes de retirar el original de la hoja operativa y mantiene todo el historial sin eliminación automática por antigüedad. Conserva usuarios, auditoría y estadísticas; elimina sesiones de acceso vencidas, renueva caché temporal y retira únicamente metadatos técnicos de notificaciones ya terminadas de más de siete días y permisos de avisos vencidos hace más de siete días. Reconcilia las estadísticas recientes sin eliminar agregados históricos. Los pendientes de más de una hora se cancelan con un motivo registrado y se conservan. La comprobación al iniciar sesión agenda el mantenimiento en segundo plano si falta y omite trabajo cuando ya se ejecutó ese día. No edites filas manualmente durante la operación; los IDs, versiones y contadores los administra el backend.
 
 ## Datos y seguridad
 
@@ -56,6 +58,10 @@ Sheets no ofrece transacciones entre varias hojas. Una interrupción excepcional
 El GPS comparte la última posición del cliente mientras la página permanece abierta y el permiso está activo. No se rastrea al domiciliario ni se dibuja una ruta real de su moto: las animaciones expresan estados del servicio. La zona inicial es un radio operativo configurable de 12 km alrededor del centro indicado; no representa el límite oficial del municipio. Verifica la cobertura comercial antes de abrir al público.
 
 ## Validación
+
+`npm test` incluye firmas VAPID verificadas con la criptografía nativa de Node, permisos, claves inconsistentes, destinos permitidos, privacidad, sesión vencida, reintentos, destinatario caducado, recuperación de una aceptación anterior a la suscripción y conservación de datos. `npm run test:pwa` inicia su propio servidor de prueba y ejecuta el backend completo en memoria; genera las claves con WebCrypto, guarda permisos en IndexedDB y comprueba `showNotification` con todas las ventanas de la aplicación cerradas, mediante entrada Push simulada por Chromium. También verifica cuatro tamaños de pantalla, indicadores neutros e inicio sin conexión. El proveedor de suscripciones está simulado; **no acredita entrega real desde Google a Android, Windows o iOS**. Esa verificación requiere publicar Apps Script y un dispositivo con permiso. Ninguna prueba escribe en el Sheet real.
+
+Para reconstruir la firma incluida en `Code.gs`: `npm ci` y `npm run build:push`. La fuente es `backend/push-crypto.source.mjs` y `backend/push-service.gs`; la versión completa generada ya está lista para copiar. Las dependencias de desarrollo `@noble/curves` y `@noble/hashes` conservan sus licencias MIT en `vendor/` y en el archivo generado. No se envían al navegador. Al cambiar el código público, actualizar también la versión de las importaciones y el precache de `sw.js`; las actualizaciones del worker esperan una acción del usuario para no interrumpir formularios.
 
 Las pruebas ejecutan el `Code.gs` real sobre un adaptador en memoria de los servicios de Apps Script. Cubren idempotencia, privacidad, estados, permisos, cambio inicial, revocación, aislamiento por ciudad, GPS, mantenimiento y estadísticas. Esto no sustituye la prueba del despliegue real de Google, CORS, cuotas, GPS físico ni audio en teléfonos. El flujo demo permite revisar la interfaz y la sincronización entre pestañas.
 
@@ -70,4 +76,4 @@ Las pruebas funcionales sustituyen el contenido de los iframes externos para ais
 - [Geocoder integrado de Apps Script](https://developers.google.com/apps-script/reference/maps/geocoder)
 - [Compartir e incrustar un mapa de Google](https://support.google.com/maps/answer/144361)
 
-La ilustración se generó con la herramienta integrada imagegen; el prompt está en [assets/ARTWORK.md](assets/ARTWORK.md). El recurso final es `assets/courier.webp` (850 × 850, aproximadamente 78 KB). El símbolo `assets/mark.svg` es un monograma ligero de la interfaz, independiente de la ilustración.
+La ilustración se generó y se recortó con la herramienta integrada imagegen; los prompts están en [assets/ARTWORK.md](assets/ARTWORK.md). El recurso visible es `assets/courier-cutout.webp` (850 × 850, aproximadamente 189 KB, canal alfa real). Se conserva el original como referencia. El símbolo `assets/mark.svg` es un monograma ligero de la interfaz, independiente de la ilustración.

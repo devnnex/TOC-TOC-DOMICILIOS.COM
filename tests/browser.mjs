@@ -12,6 +12,7 @@ import { stubMapFrames } from "./support/map-frames.mjs";
       : {}),
   });
   const context = await browser.newContext({
+    serviceWorkers: "block",
     viewport: { width: 1440, height: 1080 },
     locale: "es-CO",
     permissions: ["geolocation"],

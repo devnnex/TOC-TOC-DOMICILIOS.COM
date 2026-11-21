@@ -109,15 +109,19 @@ export async function passwordKey(password, salt) {
 let demoModule;
 export async function api(action, data = {}, session = "") {
   if (demo) {
-    demoModule ||= import("./demo.js?v=1.2.0");
+    demoModule ||= import("./demo.js?v=1.3.0");
     return (await demoModule).request(action, data, session);
   }
   if (!config.apiUrl)
     throw Object.assign(
       new Error(
-        "Falta conectar Apps Script. Consulta INSTALACION.md o abre la demostración.",
+        "El servicio aún no está conectado. Puedes consultar la demostración.",
       ),
       { code: "NOT_CONFIGURED" },
+    );
+  if (navigator.onLine === false)
+    throw new Error(
+      "Estás sin conexión. Vuelve a conectarte para enviar o actualizar tu servicio.",
     );
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 25000);
@@ -139,7 +143,7 @@ export async function api(action, data = {}, session = "") {
       result = await r.json();
     } catch {
       throw new Error(
-        "El despliegue de Apps Script no devolvió JSON. Revisa el acceso público y la URL /exec.",
+        "El servicio no respondió correctamente. El equipo debe revisar su conexión.",
       );
     }
     if (!result.ok)
@@ -149,15 +153,31 @@ export async function api(action, data = {}, session = "") {
         ),
         { code: result.error?.code },
       );
+    if (result.data?.pushDispatch && action !== "subscribePush") {
+      const dispatch = result.data.pushDispatch;
+      delete result.data.pushDispatch;
+      // Runs separately: broker delivery never blocks the service confirmation.
+      fetch(config.apiUrl, {
+        method: "POST",
+        credentials: "omit",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "dispatchPush",
+          data: dispatch,
+          session: "",
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     return result.data;
   } catch (e) {
     if (e.name === "AbortError")
       throw new Error(
-        "Google está tardando en responder. Conservamos tu solicitud para reintentar sin duplicarla.",
+        "La respuesta está tardando. Vuelve a intentar; una misma solicitud no se duplica.",
       );
     if (e instanceof TypeError)
       throw new Error(
-        "No pudimos conectar. Revisa tu conexión y el despliegue público de Apps Script.",
+        "No pudimos conectar con el servicio. Revisa tu conexión y vuelve a intentarlo.",
       );
     throw e;
   } finally {
@@ -173,7 +193,7 @@ export function banner() {
       "DEMOSTRACIÓN LOCAL · Datos de ejemplo en este navegador. No se envían servicios reales.";
   } else if (!config.apiUrl) {
     n.hidden = false;
-    n.append(document.createTextNode("Conexión pendiente con Google Sheets. "));
+    n.append(document.createTextNode("Conexión pendiente con el servicio. "));
     const a = el("a", "", "Explorar demostración");
     a.href = `${location.pathname.split("/").pop() || "index.html"}?demo=1`;
     n.append(a);

@@ -9,6 +9,14 @@ for (const name of files.filter((x) => x.endsWith(".js"))) {
   if (r.status !== 0) throw new Error(r.stderr);
 }
 new Script(await readFile("Code.gs", "utf8"), { filename: "Code.gs" });
+new Script(await readFile("sw.js", "utf8"), { filename: "sw.js" });
+const worker = await readFile("sw.js", "utf8");
+for (const file of [
+  ...worker.matchAll(
+    /'((?:assets\/|index\.html|admin\.html|config\.js)[^']+)'/g,
+  ),
+].map((m) => m[1].split("?")[0]))
+  await stat(file);
 for (const name of ["index.html", "admin.html"]) {
   const html = await readFile(name, "utf8");
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
@@ -20,9 +28,16 @@ for (const name of ["index.html", "admin.html"]) {
     await stat(path);
   }
 }
-for (const file of ["config.js", "appsscript.json", "package.json"]) {
+for (const file of [
+  "config.js",
+  "appsscript.json",
+  "package.json",
+  "manifest.webmanifest",
+  "admin.webmanifest",
+]) {
   const source = await readFile(file, "utf8");
-  if (file.endsWith(".json")) JSON.parse(source);
+  if (file.endsWith(".json") || file.endsWith(".webmanifest"))
+    JSON.parse(source);
 }
 console.log(
   "Sintaxis, JSON, identificadores y archivos referenciados: correctos.",

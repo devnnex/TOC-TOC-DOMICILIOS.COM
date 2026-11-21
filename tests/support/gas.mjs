@@ -15,6 +15,7 @@ function environment({ createOwner = true } = {}) {
     fail: false,
     outside: false,
   };
+  const pushTransport = { calls: [], code: 201, fail: false };
   const mapReply = (lat = 7.0653, lng = -73.8547) => ({
     status: "OK",
     results: [
@@ -99,6 +100,15 @@ function environment({ createOwner = true } = {}) {
   }
   const context = vm.createContext({
     console: { log() {}, error() {} },
+    UrlFetchApp: {
+      fetchAll(requests) {
+        pushTransport.calls.push(...requests);
+        if (pushTransport.fail) throw new Error("Network test");
+        return requests.map(() => ({
+          getResponseCode: () => pushTransport.code,
+        }));
+      },
+    },
     Maps: {
       newGeocoder: () => ({
         setLanguage() {
@@ -173,6 +183,9 @@ function environment({ createOwner = true } = {}) {
         everyDays() {
           return this;
         },
+        everyMinutes() {
+          return this;
+        },
         atHour() {
           return this;
         },
@@ -185,6 +198,11 @@ function environment({ createOwner = true } = {}) {
       }),
     },
     Utilities: {
+      newBlob: (s) => ({
+        getBytes: () => Array.from(Buffer.from(String(s), "utf8")),
+      }),
+      base64EncodeWebSafe: (bytes) => Buffer.from(bytes).toString("base64url"),
+      base64DecodeWebSafe: (s) => Array.from(Buffer.from(s, "base64url")),
       getUuid: randomUUID,
       DigestAlgorithm: { SHA_256: "sha256" },
       Charset: { UTF_8: "utf8" },
@@ -241,6 +259,7 @@ function environment({ createOwner = true } = {}) {
     owner: boot?.data.token || "",
     ownerKey,
     geocoding,
+    pushTransport,
   };
 }
 

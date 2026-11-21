@@ -21,8 +21,9 @@ import {
   inCity,
   time,
   distance,
-} from "./core.js?v=1.2.0";
-import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.2.0";
+} from "./core.js?v=1.3.0";
+import { mapPreview, reverseAddress, searchAddresses } from "./maps.js?v=1.3.0";
+import { initPwa, syncPush } from "./pwa.js?v=1.3.0";
 banner();
 wireDialogs();
 const savedKey = demo ? "toc-demo-tracking" : "toc-tracking",
@@ -45,6 +46,19 @@ let active = storageGet(savedKey),
   lastMapKey = "",
   lastTrackingMapKey = "",
   trackedOrder = null;
+initPwa({
+  role: "client",
+  target: () =>
+    active ? { id: active.id, trackingToken: active.trackingToken } : null,
+});
+window.addEventListener("toc:push-state", (event) => {
+  if (event.detail.role !== "client") return;
+  if (event.detail.enabled) {
+    $("#keep-open-title").textContent = "Avisos activados";
+    $("#keep-open-description").textContent =
+      "Puedes salir de esta página. Tu dispositivo debe permitir los avisos; aquí seguirás viendo el estado del servicio.";
+  }
+});
 function launchState(state) {
   $("#request-launch").dataset.state = state;
   $("#launch-label").textContent = active
@@ -426,6 +440,7 @@ form.addEventListener("submit", async (event) => {
       pickup,
     };
     storageSet(savedKey, active);
+    syncPush();
     storageSet(
       profileKey,
       $("#remember-contact").checked
@@ -606,6 +621,7 @@ if (active) {
   launchState(active.lastStatus);
   trackingDialog.showModal();
   beginTracking();
+  syncPush();
   if (active.sharingLocation && navigator.permissions)
     navigator.permissions
       .query({ name: "geolocation" })

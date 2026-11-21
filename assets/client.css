@@ -170,13 +170,15 @@ h2 {
   place-items: center;
   margin-block: 4px 2px;
   isolation: isolate;
+  flex: 0 0 auto;
+  min-height: 0;
 }
 .rider-stage img {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
-  mix-blend-mode: multiply;
   animation: rider-float 5s ease-in-out infinite;
   z-index: 1;
 }
@@ -232,13 +234,15 @@ h2 {
   position: relative;
   color: var(--ink);
   border-radius: 40px;
+  flex-shrink: 0;
+  z-index: 2;
 }
 .power-disc {
   display: grid;
   place-items: center;
   position: relative;
-  width: 134px;
-  height: 134px;
+  width: 156px;
+  height: 156px;
   border-radius: 50%;
   background: linear-gradient(145deg, #445047, #111e17);
   box-shadow:
@@ -336,7 +340,7 @@ h2 {
   animation: orb-glow 2.2s ease-in-out infinite;
 }
 .power-trigger[data-state="accepted"] .power-core svg {
-  fill: var(--orange);
+  fill: #d5ffad;
 }
 .launch-hint {
   margin-top: 10px;
@@ -1039,7 +1043,7 @@ summary::-webkit-details-marker {
   position: absolute;
   left: calc(50% - 67px);
   top: 46px;
-  width: 134px;
+  width: 156px;
   height: 100px;
   fill: none;
   stroke: var(--ink);
@@ -1307,12 +1311,12 @@ summary::-webkit-details-marker {
 }
 @media (min-width: 1500px) {
   .rider-stage {
-    height: 460px;
+    height: min(42dvh, 420px);
     width: 540px;
   }
   .power-disc {
-    width: 144px;
-    height: 144px;
+    width: 156px;
+    height: 156px;
   }
   .power-core {
     width: 96px;
@@ -1353,8 +1357,8 @@ summary::-webkit-details-marker {
     gap: 15px;
   }
   .power-disc {
-    width: 124px;
-    height: 124px;
+    width: 140px;
+    height: 140px;
   }
   .power-core {
     width: 82px;
@@ -1485,8 +1489,8 @@ summary::-webkit-details-marker {
     height: 240px;
   }
   .power-disc {
-    width: 114px;
-    height: 114px;
+    width: 140px;
+    height: 140px;
   }
   .power-core {
     width: 76px;
@@ -1530,8 +1534,8 @@ summary::-webkit-details-marker {
     height: 270px;
   }
   .power-disc {
-    width: 114px;
-    height: 114px;
+    width: 140px;
+    height: 140px;
   }
   .power-core {
     width: 76px;
@@ -1552,5 +1556,73 @@ summary::-webkit-details-marker {
     animation: none !important;
     transition: none !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Keep the action in its own space even on short screens. */
+.rider-stage {
+  height: clamp(220px, 38dvh, 380px);
+  max-width: 540px;
+}
+.power-trigger {
+  margin-top: 8px;
+}
+.power-disc {
+  box-shadow:
+    0 0 0 5px #e4e9e1,
+    0 0 0 7px #a5b69b,
+    0 12px 42px #90c94d30,
+    inset 0 2px 3px #ffffff42;
+}
+.power-core {
+  width: 100px;
+  height: 100px;
+}
+.power-core svg {
+  width: 64px;
+  height: 64px;
+}
+.rider-caption {
+  font-size: 11px;
+  bottom: -2px;
+}
+.launch-hint {
+  font-size: 14px;
+}
+.launch-header {
+  padding-block: 20px;
+}
+@media (max-width: 740px) {
+  .rider-stage {
+    height: clamp(210px, 34dvh, 290px);
+    margin-block: 10px 8px;
+  }
+  .power-core {
+    width: 92px;
+    height: 92px;
+  }
+  .power-core svg {
+    width: 58px;
+    height: 58px;
+  }
+  .launch-footer {
+    font-size: 12px;
+  }
+  .launch-hint {
+    font-size: 13px;
+  }
+  .launch-stage {
+    padding-bottom: 20px;
+  }
+}
+@media (max-height: 680px) {
+  .rider-stage {
+    height: 210px;
+  }
+  .launch-header {
+    padding-block: 14px;
+  }
+  .launch-footer {
+    padding-block: 12px;
   }
 }

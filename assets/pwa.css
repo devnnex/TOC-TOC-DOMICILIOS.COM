@@ -1,0 +1,120 @@
+.app-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.app-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #dce4dc;
+  background: #fff;
+  color: #3e5f36;
+  border-radius: 24px;
+  padding: 9px 13px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  min-height: 40px;
+}
+.app-tool:hover {
+  background: #f2f8ec;
+}
+.app-tool .icon {
+  width: 17px;
+  height: 17px;
+}
+.app-tool[hidden] {
+  display: none;
+}
+.app-message {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #6c786d;
+  margin-top: 10px;
+}
+.offline-notice {
+  padding: 10px 18px;
+  background: #eef3f7;
+  color: #38536a;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+.push-card {
+  background: #f2f7ed;
+  border: 1px solid #e1ead8;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+  text-align: left;
+}
+.push-card strong {
+  font-size: 14px;
+}
+.push-card p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #6b7861;
+  margin-top: 6px;
+}
+.push-card .app-tool {
+  margin-top: 11px;
+}
+.settings-app-tools {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.app-update {
+  background: #edf4e5;
+  color: #3d5f28;
+  border: 1px solid #d8e6c9;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  min-height: 40px;
+}
+.client-app-tools {
+  justify-content: center;
+  margin-top: 17px;
+}
+.client-app-tools .app-tool {
+  font-size: 12px;
+  padding: 8px 12px;
+  min-height: 36px;
+}
+.pwa-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+@media (max-width: 740px) {
+  .pwa-header-tools {
+    gap: 7px;
+  }
+  .pwa-header-tools .app-tool {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .client-app-tools {
+    margin-top: 14px;
+  }
+  .launch-header .app-tool span {
+    display: none;
+  }
+  .launch-header .app-tool {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+  .header-actions .app-tool {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+}

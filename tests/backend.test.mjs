@@ -60,7 +60,7 @@ test("el login agenda mantenimiento una sola vez sin esperar la limpieza", () =>
     1,
   );
   e.context.maintenanceAfterLogin();
-  assert.equal(e.triggers.length, 1);
+  assert.equal(e.triggers.length, 2);
   assert.ok(e.context.system_("maintenanceAt"));
 });
 test("un cliente que sigue esperando recibe la expiración sin esperar al ciclo diario", () => {
@@ -92,7 +92,7 @@ function payload(overrides = {}) {
 test("setup es idempotente y el bootstrap solo puede usarse una vez", () => {
   const e = environment();
   e.context.setup();
-  assert.equal(e.triggers.length, 1);
+  assert.equal(e.triggers.length, 2);
   assert.equal(e.tables.get("Users").getLastRow(), 2);
   assert.equal(e.props.has("BOOTSTRAP_TOKEN"), false);
   assert.equal(
