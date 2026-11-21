@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="es-CO">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#17232b" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https://script.google.com https://*.googleusercontent.com https://*.googleapis.com https://*.gstatic.com https://*.google.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com; frame-src https://www.google.com https://maps.google.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
+    <title>Equipo · TOC TOC</title>
+    <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="assets/app.css" />
+    <script src="config.js" defer></script>
+    <script type="module" src="assets/admin.js"></script>
+  </head>
+  <body class="admin-body">
+    <div id="environment-banner" class="environment-banner" hidden></div>
+    <section id="login-screen" class="login-screen">
+      <div class="login-art">
+        <a href="index.html" class="brand"
+          ><img src="assets/mark.svg" width="48" height="48" alt="" /><span
+            >toc<span class="brand-accent">toc</span
+            ><small>DOMICILIOS</small></span
+          ></a
+        ><span class="eyebrow">DETRÁS DE CADA ENTREGA, ESTÁS TÚ.</span>
+        <h1>
+          Todo se mueve.<br /><em>Tú tienes<br />el control.</em>
+        </h1>
+        <p>
+          Servicios, equipo y decisiones.<br />Un solo lugar para mover tu
+          negocio.
+        </p>
+        <img
+          src="assets/courier.webp"
+          alt="Motociclista de TOC TOC"
+          width="440"
+          height="440"
+        />
+      </div>
+      <div class="login-content">
+        <a href="index.html" id="back-home" class="text-button"
+          >Volver al inicio</a
+        >
+        <div class="login-card">
+          <span class="pill pill-orange">ESPACIO DEL EQUIPO</span>
+          <h2>Vamos a mover la ciudad.</h2>
+          <p class="muted" id="login-description">
+            Ingresa con la cuenta que te asignó tu jefe.
+          </p>
+          <form id="login-form">
+            <label
+              >Correo electrónico<input
+                name="email"
+                type="email"
+                autocomplete="username"
+                required
+                maxlength="120"
+                placeholder="tu@correo.com" /></label
+            ><label
+              >Contraseña<input
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                minlength="12"
+                maxlength="128"
+                placeholder="Tu contraseña de acceso"
+            /></label>
+            <div id="setup-fields" hidden>
+              <label
+                >Tu nombre<input
+                  name="name"
+                  maxlength="70"
+                  placeholder="Nombre del jefe" /></label
+              ><label
+                >Código de instalación<input
+                  name="bootstrapToken"
+                  type="password"
+                  autocomplete="off"
+                  maxlength="100"
+                  placeholder="El código del registro de setup()"
+              /></label>
+              <p class="field-help">
+                Este código se genera una sola vez al ejecutar setup() en Apps
+                Script. Nadie puede crear el primer jefe sin él.
+              </p>
+            </div>
+            <div
+              class="inline-error"
+              id="login-error"
+              role="alert"
+              hidden
+            ></div>
+            <button
+              class="button button-primary button-wide"
+              type="submit"
+              id="login-submit"
+            >
+              Entrar al panel
+            </button>
+          </form>
+          <button class="text-button setup-toggle" id="setup-toggle">
+            Estoy instalando el sistema por primera vez</button
+          ><a
+            class="button button-secondary button-wide demo-access"
+            href="admin.html?demo=1"
+            id="demo-access"
+            >Explorar demostración</a
+          >
+          <p class="form-footnote">
+            <svg class="icon"><use href="assets/icons.svg#shield" /></svg>
+            Acceso privado · Sesiones con vencimiento
+          </p>
+        </div>
+      </div>
+    </section>
+    <div class="admin-layout" id="admin-app" hidden>
+      <aside class="sidebar">
+        <a class="brand" href="index.html" id="sidebar-brand"
+          ><img src="assets/mark.svg" width="42" height="42" alt="" /><span
+            >toc<span class="brand-accent">toc</span
+            ><small>CONTROL DE OPERACIONES</small></span
+          ></a
+        >
+        <div class="workspace-label">TU ESPACIO DE TRABAJO</div>
+        <nav class="admin-nav" aria-label="Panel administrativo">
+          <a href="#inbox" data-view="inbox"
+            ><svg class="icon"><use href="assets/icons.svg#grid" /></svg> Centro
+            de servicios <span id="pending-count" class="nav-count">0</span></a
+          ><a href="#analytics" data-view="analytics"
+            ><svg class="icon"><use href="assets/icons.svg#chart" /></svg>
+            Estadísticas</a
+          ><a href="#history" data-view="history"
+            ><svg class="icon"><use href="assets/icons.svg#clock" /></svg>
+            Historial</a
+          ><a href="#team" data-view="team" id="team-nav"
+            ><svg class="icon"><use href="assets/icons.svg#users" /></svg> Mi
+            equipo</a
+          ><a href="#settings" data-view="settings"
+            ><svg class="icon"><use href="assets/icons.svg#settings" /></svg>
+            Configuración</a
+          >
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="sidebar-tip">
+            <span class="how-icon"
+              ><svg class="icon">
+                <use href="assets/icons.svg#bolt" /></svg></span
+            ><strong>Cada toque cuenta.</strong>
+            <p>
+              Mantén el panel abierto y activa las alertas para recibir nuevos
+              servicios.
+            </p>
+          </div>
+          <a
+            href="index.html"
+            class="text-button"
+            id="client-link"
+            target="_blank"
+            rel="noopener"
+            >Ver página del cliente</a
+          ><button class="logout-button" id="logout-button">
+            <svg class="icon"><use href="assets/icons.svg#logout" /></svg>
+            Cerrar sesión
+          </button>
+          <div class="operator">
+            <span id="operator-avatar" class="avatar">T</span
+            ><span
+              ><strong id="operator-name">Equipo TOC TOC</strong
+              ><small id="operator-role">Administrador</small></span
+            >
+          </div>
+        </div>
+      </aside>
+      <div class="admin-main">
+        <header class="admin-header">
+          <div class="header-location">
+            <svg class="icon"><use href="assets/icons.svg#pin" /></svg
+            ><span id="admin-city">Barrancabermeja</span
+            ><span class="header-divider"></span
+            ><span class="connection-state" id="connection-state"
+              >Conectando</span
+            >
+          </div>
+          <div class="header-actions">
+            <button class="sound-button" id="sound-button">
+              <svg class="icon"><use href="assets/icons.svg#sound" /></svg
+              ><span>Activar alertas</span></button
+            ><span class="avatar small-avatar" id="header-avatar">T</span>
+          </div>
+        </header>
+        <main class="admin-content">
+          <div id="admin-error" class="inline-error" role="alert" hidden></div>
+          <section id="view-inbox" class="admin-view">
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">EL PULSO DE TU NEGOCIO</span>
+                <h1>
+                  Todo listo para moverse<span class="orange-dot">.</span>
+                </h1>
+                <p class="muted">
+                  Cada solicitud, una oportunidad de hacer el día más fácil.
+                </p>
+              </div>
+              <div class="page-heading-actions">
+                <span class="date-label" id="today-label"></span
+                ><button class="button button-secondary" id="refresh-button">
+                  Actualizar
+                </button>
+              </div>
+            </div>
+            <div class="kpi-grid compact-kpis" id="inbox-kpis"></div>
+            <div class="inbox-toolbar">
+              <div class="tabs" role="group" aria-label="Filtrar servicios">
+                <button class="active" data-filter="pending">
+                  Por aceptar <span id="tab-pending">0</span></button
+                ><button data-filter="accepted">
+                  En camino <span id="tab-accepted">0</span></button
+                ><button data-filter="all">Todos</button>
+              </div>
+              <label class="search-input"
+                ><svg class="icon"><use href="assets/icons.svg#search" /></svg
+                ><input
+                  id="search-requests"
+                  placeholder="Buscar nombre o dirección"
+                  aria-label="Buscar servicios"
+              /></label>
+            </div>
+            <div class="list-heading">
+              <span id="list-caption">SOLICITUDES ENTRANTES</span
+              ><span class="micro" id="last-sync"
+                >Preparando tu operación…</span
+              >
+            </div>
+            <div
+              class="requests-list"
+              id="requests-list"
+              aria-live="polite"
+            ></div>
+            <button class="button button-secondary" id="seed-demo" hidden>
+              Crear solicitud de ejemplo
+            </button>
+          </section>
+          <section id="view-analytics" class="admin-view" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">DECIDE CON DATOS</span>
+                <h1>
+                  Tu negocio en perspectiva<span class="orange-dot">.</span>
+                </h1>
+                <p class="muted">
+                  Resultados de los servicios solicitados durante el período.
+                </p>
+              </div>
+              <label
+                >Período<select id="stats-period">
+                  <option value="7">Últimos 7 días</option>
+                  <option value="30" selected>Últimos 30 días</option>
+                  <option value="90">Últimos 90 días</option>
+                </select></label
+              >
+            </div>
+            <div id="analytics-kpis" class="kpi-grid"></div>
+            <div class="analytics-grid">
+              <article class="panel chart-panel">
+                <div class="panel-heading">
+                  <div>
+                    <h2>El ritmo de tus servicios</h2>
+                    <p class="muted">
+                      Solicitados y completados por día de solicitud
+                    </p>
+                  </div>
+                  <div class="chart-legend">
+                    <span>Solicitudes</span><span>Completados</span>
+                  </div>
+                </div>
+                <div class="chart-scroll">
+                  <div
+                    id="activity-chart"
+                    class="activity-chart"
+                    role="img"
+                    aria-label="Gráfica de servicios diarios"
+                  ></div>
+                </div>
+                <div class="chart-summary" id="chart-summary"></div>
+              </article>
+              <article class="panel">
+                <h2>Lo que mueve tu operación</h2>
+                <p class="muted">Distribución por tipo de servicio</p>
+                <div id="service-breakdown" class="service-breakdown"></div>
+                <div class="insight-box" id="business-insight"></div>
+              </article>
+            </div>
+            <article class="panel">
+              <h2>Detalle diario</h2>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Solicitudes</th>
+                      <th>Aceptados</th>
+                      <th>Completados</th>
+                      <th>Cancelados</th>
+                      <th>Tarifas registradas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="daily-stats"></tbody>
+                </table>
+              </div>
+              <p class="field-help">
+                Las tarifas son valores informados de servicios completados; no
+                representan pagos verificados ni utilidad. La aceptación se
+                calcula sobre solicitudes; el tiempo de respuesta considera
+                servicios aceptados.
+              </p>
+            </article>
+          </section>
+          <section id="view-history" class="admin-view" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">CADA MOVIMIENTO CUENTA</span>
+                <h1>Historial de servicios<span class="orange-dot">.</span></h1>
+                <p class="muted">
+                  Consulta tus servicios conservados durante los últimos 90
+                  días.
+                </p>
+              </div>
+            </div>
+            <div class="history-controls panel">
+              <label>Desde<input id="history-from" type="date" /></label
+              ><label>Hasta<input id="history-to" type="date" /></label
+              ><label
+                >Estado<select id="history-status">
+                  <option value="">Todos</option>
+                  <option value="pending">Por aceptar</option>
+                  <option value="accepted">En camino</option>
+                  <option value="completed">Completados</option>
+                  <option value="cancelled">Cancelados</option>
+                </select></label
+              ><button class="button button-primary" id="history-search">
+                Consultar
+              </button>
+            </div>
+            <div class="table-scroll panel">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Solicitud</th>
+                    <th>Cliente</th>
+                    <th>Recogida</th>
+                    <th>Estado</th>
+                    <th>Domiciliario</th>
+                    <th>Tarifa</th>
+                  </tr>
+                </thead>
+                <tbody id="history-table"></tbody>
+              </table>
+              <button class="button button-secondary" id="history-more" hidden>
+                Cargar más
+              </button>
+            </div>
+          </section>
+          <section id="view-team" class="admin-view" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">LA GENTE QUE LO HACE POSIBLE</span>
+                <h1>
+                  Un equipo en movimiento<span class="orange-dot">.</span>
+                </h1>
+                <p class="muted">
+                  Los jefes gestionan el acceso. Cada administrador opera
+                  únicamente en su ciudad.
+                </p>
+              </div>
+            </div>
+            <div class="team-grid">
+              <article class="panel">
+                <h2>Crear administrador</h2>
+                <form id="team-form">
+                  <label
+                    >Nombre<input
+                      name="name"
+                      required
+                      maxlength="70"
+                      autocomplete="off" /></label
+                  ><label
+                    >Correo de acceso<input
+                      name="email"
+                      type="email"
+                      required
+                      maxlength="120"
+                      autocomplete="off" /></label
+                  ><label
+                    >Contraseña inicial<input
+                      name="password"
+                      type="password"
+                      required
+                      minlength="12"
+                      maxlength="128"
+                      autocomplete="new-password"
+                    /><span class="field-help"
+                      >Mínimo 12 caracteres. El administrador deberá cambiarla
+                      al ingresar.</span
+                    ></label
+                  >
+                  <p class="field-help" id="team-city-caption"></p>
+                  <button class="button button-primary" id="team-submit">
+                    Crear administrador
+                  </button>
+                </form>
+              </article>
+              <article class="panel">
+                <h2>Personas con acceso</h2>
+                <div id="team-list"></div>
+              </article>
+            </div>
+          </section>
+          <section id="view-settings" class="admin-view" hidden>
+            <div class="page-heading">
+              <div>
+                <span class="eyebrow">TU OPERACIÓN, A PUNTO</span>
+                <h1>Configuración<span class="orange-dot">.</span></h1>
+                <p class="muted">
+                  Un panel listo para trabajar y una cuenta protegida.
+                </p>
+              </div>
+            </div>
+            <div class="team-grid">
+              <article class="panel">
+                <h2>Tu contraseña</h2>
+                <p id="password-notice" class="field-help">
+                  Actualiza la contraseña cuando lo necesites. Se cerrarán las
+                  demás sesiones.
+                </p>
+                <form id="password-form">
+                  <label
+                    >Contraseña actual<input
+                      name="currentPassword"
+                      type="password"
+                      required
+                      autocomplete="current-password" /></label
+                  ><label
+                    >Nueva contraseña<input
+                      name="newPassword"
+                      type="password"
+                      required
+                      minlength="12"
+                      maxlength="128"
+                      autocomplete="new-password" /></label
+                  ><button class="button button-primary" id="password-submit">
+                    Actualizar contraseña
+                  </button>
+                </form>
+              </article>
+              <article class="panel">
+                <h2>Estado de la operación</h2>
+                <div id="system-status"></div>
+                <button class="button button-secondary" id="test-sound">
+                  Probar sonido y voz
+                </button>
+                <p class="field-help">
+                  Las alertas requieren mantener abierta la página y que el
+                  navegador permita audio. Actívalas de nuevo después de
+                  recargar.
+                </p>
+                <div class="insight-box">
+                  <strong>Mantenimiento automático</strong>
+                  <p>
+                    Al iniciar sesión se comprueba el mantenimiento diario:
+                    expira sesiones, archiva servicios cerrados y aplica la
+                    retención de datos. No borra servicios recientes ni reordena
+                    la hoja en cada consulta.
+                  </p>
+                </div>
+              </article>
+            </div>
+          </section>
+        </main>
+        <footer class="admin-footer">
+          <span>TOC TOC · Centro de operaciones</span
+          ><span>Menos vueltas. Más control.</span>
+        </footer>
+      </div>
+    </div>
+    <dialog
+      id="action-dialog"
+      class="small-dialog"
+      aria-labelledby="action-title"
+    >
+      <button
+        class="icon-button dialog-close"
+        data-close-dialog
+        aria-label="Cerrar"
+      >
+        <svg class="icon"><use href="assets/icons.svg#close" /></svg>
+      </button>
+      <h2 id="action-title">Aceptar servicio</h2>
+      <p class="muted" id="action-description"></p>
+      <form id="action-form">
+        <div id="accept-fields">
+          <label
+            >Nombre del domiciliario<input
+              name="courier"
+              maxlength="70"
+              required
+              placeholder="¿Quién va por el cliente?" /></label
+          ><label
+            >Celular del domiciliario<input
+              name="courierPhone"
+              type="tel"
+              required
+              maxlength="16"
+              pattern="(\+57\s?)?3[0-9\s]{9,12}"
+              placeholder="300 123 4567" /></label
+          ><label
+            >Tarifa del servicio (COP)<input
+              name="fee"
+              type="number"
+              min="0"
+              max="1000000"
+              step="100"
+              required
+              placeholder="Ej. 6000"
+          /></label>
+        </div>
+        <div id="cancel-fields" hidden>
+          <label
+            >Motivo de cancelación<textarea
+              name="cancelReason"
+              maxlength="220"
+              rows="3"
+              placeholder="Le mostraremos este motivo al cliente"
+            ></textarea>
+          </label>
+        </div>
+        <div id="action-error" class="inline-error" role="alert" hidden></div>
+        <button class="button button-primary button-wide" id="action-submit">
+          Confirmar aceptación
+        </button>
+      </form>
+    </dialog>
+    <dialog
+      id="reset-dialog"
+      class="small-dialog"
+      aria-labelledby="reset-title"
+    >
+      <button
+        class="icon-button dialog-close"
+        data-close-dialog
+        aria-label="Cerrar"
+      >
+        <svg class="icon"><use href="assets/icons.svg#close" /></svg>
+      </button>
+      <h2 id="reset-title">Restablecer contraseña</h2>
+      <p class="muted" id="reset-user-caption"></p>
+      <form id="reset-form">
+        <label
+          >Nueva contraseña inicial<input
+            name="password"
+            type="password"
+            required
+            minlength="12"
+            maxlength="128"
+            autocomplete="new-password" /></label
+        ><button class="button button-primary" id="reset-submit">
+          Restablecer y cerrar sesiones
+        </button>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <noscript
+      ><p class="noscript">
+        Activa JavaScript para utilizar el panel.
+      </p></noscript
+    >
+  </body>
+</html>

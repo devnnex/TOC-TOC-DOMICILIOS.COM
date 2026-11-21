@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="es-CO">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ff6b20" />
+    <meta
+      name="description"
+      content="Solicita un domiciliario en Barrancabermeja. Comparte tu ubicación, recibe la confirmación y sigue el estado de tu servicio con TOC TOC."
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' https://script.google.com https://*.googleusercontent.com https://*.googleapis.com https://*.gstatic.com https://*.google.com; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com; frame-src https://www.google.com https://maps.google.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
+    <title>TOC TOC · Tu ciudad, a un toque</title>
+    <link rel="icon" href="assets/mark.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="assets/app.css" />
+    <script src="config.js" defer></script>
+    <script type="module" src="assets/client.js"></script>
+  </head>
+  <body class="landing">
+    <a class="skip-link" href="#solicitar">Ir a solicitar un servicio</a>
+    <div id="environment-banner" class="environment-banner" hidden></div>
+    <header class="site-header wrap">
+      <a class="brand" href="index.html" aria-label="TOC TOC inicio"
+        ><img src="assets/mark.svg" width="44" height="44" alt="" /><span
+          >toc<span class="brand-accent">toc</span
+          ><small>DOMICILIOS</small></span
+        ></a
+      >
+      <nav aria-label="Principal">
+        <a href="#como-funciona">Cómo funciona</a
+        ><span class="city-label"
+          ><svg class="icon"><use href="assets/icons.svg#pin" /></svg>
+          <span data-city>Barrancabermeja</span></span
+        ><a href="admin.html" class="admin-link" data-admin-link
+          >Acceso al equipo
+          <svg class="icon"><use href="assets/icons.svg#shield" /></svg
+        ></a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero wrap" aria-labelledby="hero-title">
+        <div class="hero-story">
+          <div class="eyebrow">
+            <span class="little-line"></span> TU CIUDAD, A UN TOQUE
+          </div>
+          <h1 id="hero-title">
+            Tú pides.<br />Nosotros<br /><em>nos movemos.</em>
+          </h1>
+          <p class="hero-copy">
+            Ese envío, esa compra, ese pendiente.<br />Un domiciliario para
+            hacer tu día más fácil.
+          </p>
+          <div class="hero-perks">
+            <span
+              ><svg class="icon"><use href="assets/icons.svg#target" /></svg>
+              Desde donde estés</span
+            ><span
+              ><svg class="icon"><use href="assets/icons.svg#sound" /></svg> Te
+              avisamos al aceptar</span
+            >
+          </div>
+          <a href="#solicitar" class="button button-primary mobile-cta"
+            >Solicitar un domiciliario</a
+          >
+          <div
+            class="hero-art"
+            aria-label="Ilustración de un domiciliario juvenil en una moto negra"
+          >
+            <div class="art-orbit orbit-one"></div>
+            <div class="art-orbit orbit-two"></div>
+            <img
+              src="assets/courier.webp"
+              alt="Domiciliario TOC TOC con casco y chaqueta naranja en su moto negra, sin caja"
+              width="640"
+              height="640"
+              fetchpriority="high"
+              id="hero-courier"
+            />
+            <div class="floating-label label-location">
+              <span class="round-icon"
+                ><svg class="icon">
+                  <use href="assets/icons.svg#pin" /></svg></span
+              ><span>Vamos hasta ti<small>Así de fácil.</small></span>
+            </div>
+            <div class="floating-label label-delivery">
+              <svg class="icon"><use href="assets/icons.svg#box" /></svg>
+              Pequeños envíos.<br />Grandes soluciones.
+            </div>
+            <span class="art-spark spark-one">✦</span
+            ><span class="art-spark spark-two">✦</span>
+          </div>
+        </div>
+        <section
+          class="request-card"
+          id="solicitar"
+          aria-labelledby="request-title"
+        >
+          <div class="card-topline">
+            <span class="pill pill-orange"
+              ><svg class="icon"><use href="assets/icons.svg#bolt" /></svg> SIN
+              DESCARGAR NADA</span
+            ><span class="step-caption">Vamos a hacerlo fácil</span>
+          </div>
+          <h2 id="request-title">¿Qué movemos hoy?</h2>
+          <p class="muted">Cuéntanos dónde estás. Nosotros nos encargamos.</p>
+          <form id="request-form">
+            <fieldset class="service-field">
+              <legend>Tipo de servicio</legend>
+              <div class="service-options">
+                <label
+                  ><input
+                    type="radio"
+                    name="service"
+                    value="envio"
+                    checked
+                  /><span
+                    ><svg class="icon"><use href="assets/icons.svg#box" /></svg>
+                    Un envío</span
+                  ></label
+                >
+                <label
+                  ><input type="radio" name="service" value="compra" /><span
+                    ><svg class="icon">
+                      <use href="assets/icons.svg#bolt" />
+                    </svg>
+                    Una compra</span
+                  ></label
+                >
+                <label
+                  ><input type="radio" name="service" value="diligencia" /><span
+                    ><svg class="icon">
+                      <use href="assets/icons.svg#clock" />
+                    </svg>
+                    Una diligencia</span
+                  ></label
+                >
+              </div>
+            </fieldset>
+            <div class="form-grid">
+              <label
+                >Tu nombre<input
+                  name="name"
+                  autocomplete="given-name"
+                  maxlength="70"
+                  required
+                  placeholder="¿Cómo te llamas?" /></label
+              ><label
+                >Celular<input
+                  name="phone"
+                  type="tel"
+                  autocomplete="tel"
+                  inputmode="tel"
+                  maxlength="16"
+                  pattern="(\+57\s?)?3[0-9\s]{9,12}"
+                  required
+                  placeholder="300 123 4567"
+              /></label>
+            </div>
+            <div class="field-heading">
+              <label for="address">¿Dónde te recogemos?</label
+              ><span class="micro" data-city>Barrancabermeja</span>
+            </div>
+            <button type="button" class="location-button" id="locate-button">
+              <svg class="icon"><use href="assets/icons.svg#target" /></svg
+              ><span
+                >Usar mi ubicación actual<small
+                  >Activa el GPS para encontrarte mejor</small
+                ></span
+              ><span class="location-plus">+</span>
+            </button>
+            <p id="location-status" class="field-help" role="status">
+              También puedes escribir tu dirección.
+            </p>
+            <div id="places-client" class="places-host"></div>
+            <label class="sr-only" for="address">Dirección de recogida</label
+            ><input
+              id="address"
+              name="address"
+              autocomplete="street-address"
+              maxlength="220"
+              required
+              placeholder="Ej. Calle 49 # 8-25, barrio Colombia"
+            />
+            <label class="tracking-permission" id="tracking-permission" hidden
+              ><input type="checkbox" id="live-location" checked /> Actualizar
+              mi ubicación mientras espero en esta página</label
+            >
+            <label
+              >Una referencia <span class="optional">(opcional)</span
+              ><input
+                name="reference"
+                maxlength="220"
+                placeholder="Edificio, local, color de la casa…"
+            /></label>
+            <label
+              >¿Qué necesitas? <span class="optional">(opcional)</span
+              ><textarea
+                name="notes"
+                rows="2"
+                maxlength="500"
+                placeholder="Qué llevamos, dónde lo entregamos o qué compramos"
+              ></textarea>
+            </label>
+            <label class="consent"
+              ><input type="checkbox" name="consent" required /><span
+                >Autorizo usar mis datos y mi ubicación para gestionar este
+                servicio.
+                <button type="button" class="text-button" id="privacy-button">
+                  Ver privacidad
+                </button></span
+              ></label
+            >
+            <div id="form-error" class="inline-error" role="alert" hidden></div>
+            <button
+              type="submit"
+              class="button button-primary button-wide"
+              id="submit-request"
+            >
+              <svg class="icon"><use href="assets/icons.svg#bike" /></svg>
+              Solicitar domiciliario
+            </button>
+            <p class="form-footnote">
+              <svg class="icon"><use href="assets/icons.svg#shield" /></svg> La
+              tarifa se confirma con el equipo. Sin cobros en línea.
+            </p>
+          </form>
+        </section>
+      </section>
+      <section class="how-section wrap" id="como-funciona">
+        <div>
+          <span class="eyebrow">MENOS VUELTAS. MÁS VIDA.</span>
+          <h2>Tu pendiente, en buenas manos.</h2>
+        </div>
+        <div class="how-grid">
+          <article>
+            <span class="how-icon"
+              ><svg class="icon"><use href="assets/icons.svg#pin" /></svg
+            ></span>
+            <h3>Cuéntanos dónde</h3>
+            <p>Comparte tu GPS o escribe la dirección y una referencia.</p>
+          </article>
+          <article>
+            <span class="how-icon"
+              ><svg class="icon"><use href="assets/icons.svg#sound" /></svg
+            ></span>
+            <h3>Quédate por aquí</h3>
+            <p>
+              Mantén esta página abierta. Te avisamos con sonido y voz cuando
+              acepten.
+            </p>
+          </article>
+          <article>
+            <span class="how-icon"
+              ><svg class="icon"><use href="assets/icons.svg#bike" /></svg
+            ></span>
+            <h3>Nos ponemos en marcha</h3>
+            <p>
+              Consulta el estado y los datos del domiciliario que te asignen.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="city-strip wrap">
+        <svg class="icon"><use href="assets/icons.svg#pin" /></svg>
+        <div>
+          <strong
+            >Hecho para mover <span data-city>Barrancabermeja</span>.</strong
+          >
+          <p>Servicio local. Personas de aquí. Todo desde tu navegador.</p>
+        </div>
+        <span class="city-outline">TOC TOC</span>
+      </section>
+    </main>
+    <footer class="site-footer wrap">
+      <a class="brand small-brand" href="index.html"
+        ><img src="assets/mark.svg" width="30" height="30" alt="" /><span
+          >toc<span class="brand-accent">toc</span></span
+        ></a
+      ><span>Un toque. Un pendiente menos.</span
+      ><span>© <span id="year">2026</span> TOC TOC</span>
+    </footer>
+    <dialog
+      id="tracking-dialog"
+      class="tracking-dialog"
+      aria-labelledby="tracking-title"
+    >
+      <div class="tracking-shell">
+        <div class="tracking-header">
+          <span class="brand-word">toc<span>toc</span></span
+          ><button
+            class="icon-button"
+            id="minimize-tracking"
+            aria-label="Minimizar seguimiento"
+          >
+            <svg class="icon"><use href="assets/icons.svg#close" /></svg>
+          </button>
+        </div>
+        <span class="pill pill-orange" id="tracking-pill"
+          >CONECTANDO TU SERVICIO</span
+        >
+        <div class="journey-animation" id="journey-animation">
+          <div class="radar-ring ring-a"></div>
+          <div class="radar-ring ring-b"></div>
+          <div class="journey-road"></div>
+          <svg class="journey-bike"><use href="assets/icons.svg#bike" /></svg
+          ><span class="journey-pin"
+            ><svg class="icon"><use href="assets/icons.svg#pin" /></svg></span
+          ><span class="journey-check"
+            ><svg class="icon"><use href="assets/icons.svg#check" /></svg
+          ></span>
+        </div>
+        <h2 id="tracking-title">Buscando tu próximo movimiento</h2>
+        <p id="tracking-description">
+          Enviamos tu solicitud al equipo de TOC TOC.
+        </p>
+        <div class="tracking-steps" id="tracking-steps">
+          <span class="active">Solicitud enviada</span
+          ><span>Domiciliario en camino</span><span>Servicio completado</span>
+        </div>
+        <div class="keep-open" id="keep-open">
+          <svg class="icon"><use href="assets/icons.svg#sound" /></svg>
+          <div>
+            <strong>Quédate en esta página</strong>
+            <p>
+              Te avisaremos aquí con sonido y voz. El navegador puede
+              silenciarlos si bloqueas el teléfono o cambias de aplicación.
+            </p>
+          </div>
+        </div>
+        <div id="tracking-details" class="tracking-details"></div>
+        <p id="tracking-connection" class="field-help" role="status"></p>
+        <div class="tracking-actions">
+          <button class="button button-secondary" id="tracking-sound">
+            Activar sonido y voz</button
+          ><button class="text-button" id="cancel-request">
+            Cancelar solicitud</button
+          ><button class="button button-primary" id="new-request" hidden>
+            Solicitar otro servicio
+          </button>
+        </div>
+      </div>
+    </dialog>
+    <button
+      class="tracking-dock button button-primary"
+      id="tracking-dock"
+      hidden
+    >
+      Ver mi servicio
+    </button>
+    <dialog id="privacy-dialog" class="small-dialog">
+      <button
+        class="icon-button dialog-close"
+        data-close-dialog
+        aria-label="Cerrar"
+      >
+        <svg class="icon"><use href="assets/icons.svg#close" /></svg>
+      </button>
+      <h2>Tu información, con propósito.</h2>
+      <p>
+        TOC TOC utiliza tu nombre, celular, dirección, instrucciones y, si lo
+        permites, ubicación para atender tu solicitud. El equipo autorizado
+        puede consultar estos datos en su panel privado.
+      </p>
+      <p>
+        El GPS solo se actualiza con tu permiso, mientras tengas esta página
+        abierta y el servicio esté activo. Puedes apagarlo cuando quieras desde
+        el navegador. No se registra un historial de recorridos.
+      </p>
+      <p>
+        Los datos operativos se conservan hasta 90 días y después se eliminan
+        automáticamente; las estadísticas diarias no contienen tus datos
+        personales. Para consultar o eliminar tus datos, comunícate con el
+        equipo que atiende tu servicio. No escribas información sensible en las
+        instrucciones.
+      </p>
+      <button class="button button-primary" data-close-dialog>Entendido</button>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <noscript
+      ><p class="noscript">
+        Activa JavaScript para solicitar y seguir un servicio.
+      </p></noscript
+    >
+  </body>
+</html>
