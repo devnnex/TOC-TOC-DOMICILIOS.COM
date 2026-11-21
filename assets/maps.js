@@ -91,7 +91,19 @@ export async function reverseAddress(point, city) {
   });
 }
 export async function searchAddresses(address, city) {
-  const result = await api("searchAddress", { cityId: city.id, address });
+  let result;
+  try {
+    result = await api("searchAddress", { cityId: city.id, address });
+  } catch (error) {
+    if (["UNAUTHORIZED", "UNKNOWN_ACTION"].includes(error.code))
+      throw Object.assign(
+        new Error(
+          "No pudimos ubicar esa dirección ahora. Puedes enviarla escrita y añadir una referencia.",
+        ),
+        { code: error.code },
+      );
+    throw error;
+  }
   if (!Array.isArray(result.results) || !result.results.length)
     throw new Error(
       `No encontramos esa dirección en ${city.name}. Añade calle, número y barrio.`,
